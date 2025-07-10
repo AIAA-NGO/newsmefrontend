@@ -79,27 +79,26 @@ const Signin = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-8 px-4">
       <div className="flex flex-col md:flex-row w-full max-w-6xl bg-white rounded-xl shadow-lg overflow-hidden">
-        {/* Image Section */}
-        <div className="md:w-1/2 lg:w-2/5 h-full hidden md:block">
+        {/* Image Section - Now visible on all screens */}
+        <div className="w-full md:w-1/2 lg:w-2/5 h-48 md:h-auto">
           <img
             src="./basket.jpg"
             alt="Login illustration"
             className="w-full h-full object-cover"
-            style={{ minHeight: "500px" }}
           />
         </div>
 
         {/* Form Section */}
-        <div className="w-full md:w-1/2 lg:w-3/5 p-8 md:p-12">
+        <div className="w-full md:w-1/2 lg:w-3/5 p-6 sm:p-8 md:p-12">
           <div className="max-w-md mx-auto">
             <div className="text-center md:text-left">
-              <h2 className="text-3xl font-bold text-gray-800 mb-2">Welcome back</h2>
-              <p className="text-gray-600 mb-8">Sign in to your account</p>
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-2">Welcome back</h2>
+              <p className="text-gray-600 mb-6 sm:mb-8">Sign in to your account</p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
               <div>
                 <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
                   Username
@@ -111,7 +110,7 @@ const Signin = () => {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                  className="w-full px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                 />
               </div>
 
@@ -126,7 +125,7 @@ const Signin = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                  className="w-full px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                 />
               </div>
 
@@ -137,7 +136,7 @@ const Signin = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className={`w-full ${isLoading ? "bg-blue-400" : "bg-blue-600"} text-white py-3 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition`}
+                className={`w-full ${isLoading ? "bg-blue-400" : "bg-blue-600"} text-white py-2 sm:py-3 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition`}
               >
                 {isLoading ? (
                   <span className="flex items-center justify-center">
