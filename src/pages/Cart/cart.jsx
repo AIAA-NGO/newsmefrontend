@@ -34,9 +34,7 @@ const Cart = ({ onCloseCart }) => {
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
   const [newCustomer, setNewCustomer] = useState({
     name: '',
-    phone: '',
-    email: '',
-    address: ''
+    phone: ''
   });
   const [isAddingCustomer, setIsAddingCustomer] = useState(false);
 
@@ -239,9 +237,7 @@ const Cart = ({ onCloseCart }) => {
       setShowAddCustomerModal(false);
       setNewCustomer({
         name: '',
-        phone: '',
-        email: '',
-        address: ''
+        phone: ''
       });
     } catch (error) {
       console.error("Failed to add customer:", error);
@@ -277,7 +273,7 @@ const Cart = ({ onCloseCart }) => {
       }
 
       const checkoutData = {
-        customerId: selectedCustomer || null, // Allow null for guest customers
+        customerId: selectedCustomer || null,
         paymentMethod: paymentMethod,
         mpesaNumber: paymentMethod === 'MPESA' ? formatPhoneNumber(mpesaNumber) : null,
         mpesaTransactionId: paymentMethod === 'MPESA' ? checkoutRequestId : null,
@@ -574,7 +570,7 @@ const Cart = ({ onCloseCart }) => {
         </div>
       )}
 
-      {/* Add Customer Modal */}
+      {/* Add Customer Modal - Simplified to only show name and phone */}
       {showAddCustomerModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
@@ -609,28 +605,6 @@ const Cart = ({ onCloseCart }) => {
                   onChange={(e) => setNewCustomer({...newCustomer, phone: e.target.value})}
                   className="w-full p-2 border border-gray-300 rounded-md"
                   placeholder="07XXXXXXXX"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm text-gray-700 mb-1">Email</label>
-                <input
-                  type="email"
-                  value={newCustomer.email}
-                  onChange={(e) => setNewCustomer({...newCustomer, email: e.target.value})}
-                  className="w-full p-2 border border-gray-300 rounded-md"
-                  placeholder="customer@example.com"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm text-gray-700 mb-1">Address</label>
-                <textarea
-                  value={newCustomer.address}
-                  onChange={(e) => setNewCustomer({...newCustomer, address: e.target.value})}
-                  className="w-full p-2 border border-gray-300 rounded-md"
-                  placeholder="Customer address"
-                  rows={3}
                 />
               </div>
               
