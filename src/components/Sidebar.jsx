@@ -85,7 +85,7 @@ export default function Sidebar({ isMobileOpen, isMinimized, onLinkClick, onTogg
           <div className="flex items-center gap-3">
             {(!isMinimized || isMobile) && (
               <span className="text-xl font-bold select-none bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-blue-600">
-                InventoryPro
+                Peak Uniforms MIS
               </span>
             )}
           </div>
@@ -270,42 +270,50 @@ export default function Sidebar({ isMobileOpen, isMinimized, onLinkClick, onTogg
             </Link>
           )}
 
-          {/* Finance Module - Only for users with reports_view permission */}
-          {hasPermission('finance_view') && (
-            <div className="relative">
-              <button
-                onClick={() => setFinanceOpen(!financeOpen)}
-                className={`flex items-center justify-between w-full px-4 py-4 rounded-lg transition-all
-                  ${isActive('/reports/income-statement') ? 'bg-blue-900/30 text-white border-l-4 border-blue-500' : 'hover:bg-gray-700/50'}
-                  ${isMinimized && !isMobile ? 'justify-center px-2' : ''}`}
-                title={isMinimized && !isMobile ? 'Finance' : undefined}
-              >
-                <div className="flex items-center gap-3">
-                  <Landmark size={20} className={`${isActive('/reports/income-statement') ? 'text-blue-400' : 'text-gray-300'}`} />
-                  {(!isMinimized || isMobile) && <span className="font-medium">Finance</span>}
-                </div>
-                {(!isMinimized || isMobile) && (
-                  <ChevronDown 
-                    size={16} 
-                    className={`transition-transform ${financeOpen ? 'rotate-180' : ''} text-gray-400`}
-                  />
-                )}
-              </button>
-              {(financeOpen && (!isMinimized || isMobile)) && (
-                <div className="ml-10 mt-2 flex flex-col gap-1 pl-2 border-l border-gray-700">
-                  {[
-                    { path: '/reports/income-statement', label: 'Income Statement' },
-                    { path: '/reports/cash-flow', label: 'Cash Flow Statement' }
-                  ].map(item => ({
-                    ...item,
-                    icon: <FileText size={14} />,
-                    requiredPermission: 'finance_view',
-                    onClick: () => setFinanceOpen(false)
-                  })).map(renderMenuItem)}
-                </div>
-              )}
-            </div>
-          )}
+
+         {/* Finance Module - Only for users with reports_view permission */}
+{hasPermission('finance_view') && (
+  <div className="relative">
+    <button
+      onClick={() => setFinanceOpen(!financeOpen)}
+      className={`flex items-center justify-between w-full px-4 py-4 rounded-lg transition-all
+        ${isActive('/reports/income-statement') ? 'bg-blue-900/30 text-white border-l-4 border-blue-500' : 'hover:bg-gray-700/50'}
+        ${isMinimized && !isMobile ? 'justify-center px-2' : ''}`}
+      title={isMinimized && !isMobile ? 'Finance' : undefined}
+    >
+      <div className="flex items-center gap-3">
+        <Landmark size={20} className={`${isActive('/reports/income-statement') ? 'text-blue-400' : 'text-gray-300'}`} />
+        {(!isMinimized || isMobile) && <span className="font-medium">Finance</span>}
+      </div>
+      {(!isMinimized || isMobile) && (
+        <ChevronDown 
+          size={16} 
+          className={`transition-transform ${financeOpen ? 'rotate-180' : ''} text-gray-400`}
+        />
+      )}
+    </button>
+    {(financeOpen && (!isMinimized || isMobile)) && (
+      <div className="ml-10 mt-2 flex flex-col gap-1 pl-2 border-l border-gray-700">
+        {[
+          { path: '/reports/income-statement', label: 'Income Statement' },
+          { path: '/reports/cash-flow', label: 'Cash Flow Statement' },
+          { 
+            path: '/finance/payments', 
+            label: 'Worker Payments', 
+            requiredPermission: 'finance_view',
+            icon: <FileText size={14} />,
+            onClick: () => setFinanceOpen(false)
+          }
+        ].map(item => ({
+          ...item,
+          icon: item.icon || <FileText size={14} />,
+          requiredPermission: item.requiredPermission || 'finance_view',
+          onClick: item.onClick || (() => setFinanceOpen(false))
+        })).map(renderMenuItem)}
+      </div>
+    )}
+  </div>
+)}
 
           {/* Users - Only for users with user_view permission */}
           {hasPermission('user_view') && (

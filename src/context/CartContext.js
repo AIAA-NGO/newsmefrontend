@@ -1,4 +1,3 @@
-// src/contexts/CartContext.js
 import React, { createContext, useContext, useState } from 'react';
 
 const CartContext = createContext();
@@ -23,14 +22,13 @@ export const CartProvider = ({ children }) => {
     const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     const discount = items.reduce((sum, item) => sum + ((item.discountAmount || 0) * item.quantity), 0);
     const taxableAmount = subtotal - discount;
-    const tax = taxableAmount * 0.16; // 16% tax rate
-    const total = taxableAmount + tax;
+    const tax = taxableAmount - (taxableAmount / 1.16); // Reverse calculate 16% tax
     
     return { 
       subtotal: parseFloat(subtotal.toFixed(2)),
       discount: parseFloat(discount.toFixed(2)),
       tax: parseFloat(tax.toFixed(2)),
-      total: parseFloat(total.toFixed(2))
+      total: parseFloat(subtotal.toFixed(2)) // Total is same as subtotal (tax inclusive)
     };
   };
 

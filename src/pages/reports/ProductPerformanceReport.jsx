@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
-import { DatePicker, Table, Button, Statistic, message, Card, Row, Col } from 'antd';
+import { useState, useEffect, useMemo } from 'react';
+import { DatePicker, Table, Button, Statistic, message, Card, Row, Col, Spin, Tag } from 'antd';
 import { Download } from 'lucide-react';
 import dayjs from 'dayjs';
 import { getAllProducts } from '../../services/productServices';
 import { getCategories } from '../../services/productServices';
-import { getProfitLossReport } from '../../services/profitService'; // Updated import
+import { getProfitLossReport } from '../../services/profitService';
+import { getSalesByDateRange } from '../../services/salesService';
 
 const ProductPerformanceReport = () => {
   const [startDate, setStartDate] = useState(dayjs().subtract(1, 'month'));
@@ -33,80 +34,66 @@ const ProductPerformanceReport = () => {
 
   // Format percentage
   const formatPercentage = (value) => {
-    return `${parseFloat(value || 0).toFixed(2)}%`;
+    return `${Math.round((value || 0) * 100) / 100}%`;
   };
 
   // Columns configuration
-  const columns = [
+  const columns = useMemo(() => [
     { 
       title: 'Product ID', 
       dataIndex: 'productId', 
       key: 'productId',
-      width: 120,
+      width: 100,
       fixed: 'left',
       sorter: (a, b) => a.productId - b.productId,
-      responsive: ['md']
     },
     { 
       title: 'Product Name', 
       dataIndex: 'productName', 
       key: 'productName',
       width: 200,
-      sorter: (a, b) => a.productName.localeCompare(b.productName),
-      fixed: 'left'
+      fixed: 'left',
+      sorter: (a, b) => a.productName?.localeCompare(b.productName || ''),
     },
     { 
       title: 'Category', 
       dataIndex: 'categoryName', 
       key: 'category',
       width: 150,
-      filters: [],
-      onFilter: (value, record) => record.categoryName === value,
-      sorter: (a, b) => a.categoryName.localeCompare(b.categoryName),
-      responsive: ['md']
+      render: (category) => category || <Tag color="default">Uncategorized</Tag>,
+      sorter: (a, b) => (a.categoryName || '').localeCompare(b.categoryName || ''),
     },
     { 
       title: 'Cost Price', 
       dataIndex: 'costPrice', 
       key: 'costPrice',
       render: val => <span className="text-gray-600 font-medium">{formatCurrency(val)}</span>,
-      width: 150,
-      sorter: (a, b) => a.costPrice - b.costPrice,
-      responsive: ['lg']
+      width: 120,
+      sorter: (a, b) => (a.costPrice || 0) - (b.costPrice || 0),
     },
     { 
       title: 'Selling Price', 
       dataIndex: 'sellingPrice', 
       key: 'sellingPrice',
       render: val => <span className="text-blue-600 font-medium">{formatCurrency(val)}</span>,
-      width: 150,
-      sorter: (a, b) => a.sellingPrice - b.sellingPrice,
-      responsive: ['lg']
+      width: 120,
+      sorter: (a, b) => (a.sellingPrice || 0) - (b.sellingPrice || 0),
     },
     { 
       title: 'Units Sold', 
       dataIndex: 'unitsSold', 
       key: 'unitsSold',
       render: units => <span className="font-medium">{units}</span>,
-      width: 120,
-      sorter: (a, b) => a.unitsSold - b.unitsSold
+      width: 100,
+      sorter: (a, b) => (a.unitsSold || 0) - (b.unitsSold || 0),
     },
     { 
       title: 'Revenue', 
       dataIndex: 'revenue', 
       key: 'revenue',
       render: val => <span className="text-green-600 font-medium">{formatCurrency(val)}</span>,
-      width: 150,
-      sorter: (a, b) => a.revenue - b.revenue
-    },
-    { 
-      title: 'Cost', 
-      dataIndex: 'cost', 
-      key: 'cost',
-      render: val => <span className="text-gray-600 font-medium">{formatCurrency(val)}</span>,
-      width: 150,
-      sorter: (a, b) => a.cost - b.cost,
-      responsive: ['lg']
+      width: 120,
+      sorter: (a, b) => (a.revenue || 0) - (b.revenue || 0),
     },
     { 
       title: 'Profit', 
@@ -117,8 +104,8 @@ const ProductPerformanceReport = () => {
           {formatCurrency(val)}
         </span>
       ),
-      width: 150,
-      sorter: (a, b) => a.profit - b.profit
+      width: 120,
+      sorter: (a, b) => (a.profit || 0) - (b.profit || 0),
     },
     { 
       title: 'Profit Margin', 
@@ -129,11 +116,10 @@ const ProductPerformanceReport = () => {
           {formatPercentage(val)}
         </span>
       ),
-      width: 150,
-      sorter: (a, b) => a.profitMargin - b.profitMargin,
-      responsive: ['lg']
+      width: 120,
+      sorter: (a, b) => (a.profitMargin || 0) - (b.profitMargin || 0),
     },
-  ];
+  ], []);
 
   // Fetch product performance report
   const fetchProductReport = async () => {
@@ -145,113 +131,108 @@ const ProductPerformanceReport = () => {
     setLoading(true);
     try {
       // Fetch all necessary data in parallel
-      const [categoriesData, products, profitData] = await Promise.all([
+      const [categoriesData, products, salesData] = await Promise.all([
         getCategories(),
         getAllProducts(),
-        getProfitLossReport(startDate.toDate(), endDate.toDate())
+        getSalesByDateRange(startDate.toDate(), endDate.toDate())
       ]);
+
+      console.log('API Responses:', { categoriesData, products, salesData });
 
       // Set categories
       setCategories(categoriesData || []);
 
-      // Process the profit data with products
-      if (profitData && products) {
+      // Process the sales data to get units sold per product
+      const productSalesMap = {};
+      salesData.forEach(sale => {
+        sale.items.forEach(item => {
+          if (!productSalesMap[item.productId]) {
+            productSalesMap[item.productId] = 0;
+          }
+          productSalesMap[item.productId] += item.quantity;
+        });
+      });
+
+      // Process the products data
+      if (Array.isArray(products)) {
         const processedData = products.map(product => {
-          const productRevenue = (profitData.productBreakdown || []).find(
-            item => item.productId === product.id
-          )?.revenue || 0;
+          const unitsSold = productSalesMap[product.id] || 0;
+          const sellingPrice = Number(product.price) || 0;
+          const costPrice = Number(product.costPrice || product.cost_price) || 0;
           
-          const productCost = (profitData.productBreakdown || []).find(
-            item => item.productId === product.id
-          )?.cost || 0;
-
-          const unitsSold = (profitData.productBreakdown || []).find(
-            item => item.productId === product.id
-          )?.quantity || 0;
-
-          const profit = productRevenue - productCost;
-          const profitMargin = productRevenue > 0 ? (profit / productRevenue) * 100 : 0;
+          // Calculate financial metrics
+          const revenue = unitsSold * sellingPrice;
+          const cost = unitsSold * costPrice;
+          const profit = revenue - cost;
+          const profitMargin = revenue > 0 ? (profit / revenue) : 0;
 
           // Find category name from categories data
-          const productCategory = categoriesData.find(cat => cat.id === product.category_id);
-          const categoryName = productCategory ? productCategory.name : 'Uncategorized';
+          const productCategory = categoriesData?.find(
+            cat => cat.id === (product.categoryId || product.category_id)
+          );
+          
+          const categoryName = productCategory?.name || product.category?.name || null;
 
           return {
             productId: product.id,
             productName: product.name || `Product ${product.id}`,
             categoryName,
-            costPrice: product.cost_price || 0,
-            sellingPrice: product.price || 0,
+            costPrice,
+            sellingPrice,
             unitsSold,
-            revenue: productRevenue,
-            cost: productCost,
+            revenue,
+            cost,
             profit,
             profitMargin
           };
         });
 
         setData(processedData);
-        calculateSummary(processedData, profitData);
-        updateCategoryFilters(processedData);
+        
+        // Calculate summary statistics
+        const totalRevenue = processedData.reduce((sum, item) => sum + (item.revenue || 0), 0);
+        const totalCosts = processedData.reduce((sum, item) => sum + (item.cost || 0), 0);
+        const totalProfit = totalRevenue - totalCosts;
+        const avgProfitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+
+        setSummaryData({
+          totalProducts: processedData.length,
+          totalRevenue,
+          totalCosts,
+          totalProfit,
+          avgProfitMargin
+        });
       } else {
-        message.error('No profit data available for the selected period');
+        message.error('No product data available');
+        setData([]);
       }
     } catch (error) {
       console.error('Error fetching product report:', error);
       message.error(error.message || 'Failed to fetch product performance data');
+      setData([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Calculate summary statistics
-  const calculateSummary = (reportData, profitData) => {
-    if (!profitData) return;
-
-    setSummaryData({
-      totalProducts: reportData.length,
-      totalRevenue: profitData.totalRevenue || 0,
-      totalCosts: profitData.totalCosts || 0,
-      totalProfit: profitData.netProfit || 0,
-      avgProfitMargin: profitData.totalRevenue > 0 
-        ? (profitData.netProfit / profitData.totalRevenue) * 100 
-        : 0
-    });
-  };
-
-  // Update category filters
-  const updateCategoryFilters = (reportData) => {
-    const uniqueCategories = [...new Set(reportData.map(item => item.categoryName))];
-    const categoryColumn = columns.find(col => col.key === 'category');
-    if (categoryColumn) {
-      categoryColumn.filters = uniqueCategories.map(category => ({
-        text: category,
-        value: category
-      }));
-    }
-  };
-
   // Export report
   const handleExport = async () => {
-    if (!startDate || !endDate) {
-      message.warning('Please select both start and end dates');
+    if (data.length === 0) {
+      message.warning('No data to export');
       return;
     }
 
     setExportLoading(true);
     try {
-      // Generate CSV content
       const headers = columns.map(col => col.title).join(',');
       const rows = data.map(item => 
         columns.map(col => {
           const value = item[col.dataIndex];
-          if (col.render) {
-            if (col.dataIndex === 'profitMargin') return formatPercentage(value);
-            if (['costPrice', 'sellingPrice', 'revenue', 'cost', 'profit'].includes(col.dataIndex)) {
-              return formatCurrency(value).replace(/[^\d.,-]/g, '');
-            }
+          if (col.dataIndex === 'profitMargin') return formatPercentage(value);
+          if (['costPrice', 'sellingPrice', 'revenue', 'profit'].includes(col.dataIndex)) {
+            return formatCurrency(value).replace(/[^\d.,-]/g, '');
           }
-          return `"${value}"`;
+          return `"${value || ''}"`;
         }).join(',')
       ).join('\n');
 
@@ -274,7 +255,6 @@ const ProductPerformanceReport = () => {
     }
   };
 
-  // Load data on component mount
   useEffect(() => {
     fetchProductReport();
   }, []);
@@ -288,15 +268,14 @@ const ProductPerformanceReport = () => {
             icon={<Download size={16} />} 
             onClick={handleExport}
             loading={exportLoading}
+            disabled={data.length === 0}
             className="bg-blue-600 text-white hover:bg-blue-700 w-full md:w-auto"
           >
-            <span className="hidden md:inline">Export Report</span>
-            <span className="md:hidden">Export</span>
+            Export Report
           </Button>
         </div>
       </div>
       
-      {/* Date Range Selector */}
       <Card className="mb-4 md:mb-6">
         <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
           <DatePicker
@@ -324,14 +303,13 @@ const ProductPerformanceReport = () => {
         </div>
       </Card>
       
-      {/* Summary Cards */}
       <Row gutter={[16, 16]} className="mb-4 md:mb-6">
         <Col xs={24} sm={12} md={6}>
           <Card>
             <Statistic 
               title="Total Products" 
               value={summaryData.totalProducts} 
-              valueStyle={{ fontSize: '18px', fontWeight: 'bold' }}
+              valueStyle={{ fontSize: '16px', fontWeight: 'bold' }}
             />
           </Card>
         </Col>
@@ -340,26 +318,17 @@ const ProductPerformanceReport = () => {
             <Statistic 
               title="Total Revenue" 
               value={formatCurrency(summaryData.totalRevenue)} 
-              valueStyle={{ fontSize: '18px', fontWeight: 'bold', color: '#16a34a' }}
+              valueStyle={{ fontSize: '16px', fontWeight: 'bold', color: '#16a34a' }}
             />
           </Card>
         </Col>
         <Col xs={24} sm={12} md={6}>
           <Card>
             <Statistic 
-              title="Total Costs" 
-              value={formatCurrency(summaryData.totalCosts)} 
-              valueStyle={{ fontSize: '18px', fontWeight: 'bold', color: '#dc2626' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic 
-              title="Total Profit" 
+              title="Net Profit" 
               value={formatCurrency(summaryData.totalProfit)} 
               valueStyle={{ 
-                fontSize: '18px', 
+                fontSize: '16px', 
                 fontWeight: 'bold', 
                 color: summaryData.totalProfit >= 0 ? '#16a34a' : '#dc2626' 
               }}
@@ -368,23 +337,23 @@ const ProductPerformanceReport = () => {
         </Col>
       </Row>
       
-      {/* Product Performance Table */}
       <Card>
         <Table 
           columns={columns} 
           dataSource={data} 
           loading={loading}
           rowKey="productId"
-          scroll={{ x: true }}
+          scroll={{ x: 1100 }}
           pagination={{ 
             pageSize: 10,
             showSizeChanger: true,
             pageSizeOptions: ['10', '20', '50', '100'],
             showTotal: (total) => `Total ${total} products`,
-            responsive: true
           }}
           size="small"
-          className="responsive-table"
+          locale={{
+            emptyText: loading ? <Spin size="large" /> : 'No product data available'
+          }}
         />
       </Card>
     </div>

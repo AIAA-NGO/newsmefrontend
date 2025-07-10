@@ -102,16 +102,11 @@ const ProductCard = ({ product, cartQuantity }) => {
         )}
         
         <div className="mt-auto">
-          {/* Price */}
-          <div className="flex items-center justify-between mb-2">
+          {/* Price - Only showing unit price now */}
+          <div className="mb-2">
             <p className="text-green-600 font-bold">
               Ksh {Number(product.price).toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </p>
-            {product.costPrice && (
-              <p className="text-gray-400 text-xs line-through">
-                Ksh {Number(product.costPrice).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-              </p>
-            )}
           </div>
           
           {/* Stock & Cart Info */}

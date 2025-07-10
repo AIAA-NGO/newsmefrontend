@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { printReceipt } from '../../components/utils/printUtils';
-import { FaMoneyBillWave, FaCreditCard, FaMobileAlt, FaUniversity, FaSpinner } from 'react-icons/fa';
-import { MdCheckCircle, MdError, MdPending } from 'react-icons/md';
+import { FaMoneyBillWave, FaCreditCard, FaMobileAlt, FaUniversity, FaSpinner, FaPlus } from 'react-icons/fa';
+import { MdCheckCircle, MdError, MdPending, MdClose } from 'react-icons/md';
 import { useCart } from '../../context/CartContext';
 
 const getAuthHeader = () => {
@@ -31,6 +31,14 @@ const Cart = ({ onCloseCart }) => {
   const [lastStatusCheck, setLastStatusCheck] = useState(null);
   const [paymentStatus, setPaymentStatus] = useState(null);
   const [activeTimer, setActiveTimer] = useState(null);
+  const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
+  const [newCustomer, setNewCustomer] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    address: ''
+  });
+  const [isAddingCustomer, setIsAddingCustomer] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -206,12 +214,44 @@ const Cart = ({ onCloseCart }) => {
     }
   };
 
-  const handleCheckout = async () => {
-    if (!selectedCustomer) {
-      alert('Please select a customer');
+  const handleAddCustomer = async () => {
+    if (!newCustomer.name) {
+      alert('Customer name is required');
       return;
     }
 
+    try {
+      setIsAddingCustomer(true);
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/customers`, {
+        method: 'POST',
+        headers: getAuthHeader(),
+        body: JSON.stringify(newCustomer)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to add customer');
+      }
+
+      const customerData = await response.json();
+      setCustomers([...customers, customerData]);
+      setSelectedCustomer(customerData.id);
+      setShowAddCustomerModal(false);
+      setNewCustomer({
+        name: '',
+        phone: '',
+        email: '',
+        address: ''
+      });
+    } catch (error) {
+      console.error("Failed to add customer:", error);
+      setCustomerError(error.message || 'Failed to add customer. Please try again.');
+    } finally {
+      setIsAddingCustomer(false);
+    }
+  };
+
+  const handleCheckout = async () => {
     if (cart.items.length === 0) {
       alert('Cart is empty');
       return;
@@ -237,7 +277,7 @@ const Cart = ({ onCloseCart }) => {
       }
 
       const checkoutData = {
-        customerId: selectedCustomer,
+        customerId: selectedCustomer || null, // Allow null for guest customers
         paymentMethod: paymentMethod,
         mpesaNumber: paymentMethod === 'MPESA' ? formatPhoneNumber(mpesaNumber) : null,
         mpesaTransactionId: paymentMethod === 'MPESA' ? checkoutRequestId : null,
@@ -357,18 +397,26 @@ const Cart = ({ onCloseCart }) => {
                 <label className="block text-sm text-gray-700 mb-1">
                   Select Customer
                 </label>
-                <select
-                  value={selectedCustomer || ''}
-                  onChange={(e) => setSelectedCustomer(e.target.value ? Number(e.target.value) : null)}
-                  className="w-full p-2 border border-gray-300 rounded-md"
-                >
-                  <option value="">Select Customer</option>
-                  {customers.map((customer) => (
-                    <option key={customer.id} value={customer.id}>
-                      {customer.name} ({customer.phone || 'No phone'})
-                    </option>
-                  ))}
-                </select>
+                <div className="flex">
+                  <select
+                    value={selectedCustomer || ''}
+                    onChange={(e) => setSelectedCustomer(e.target.value ? Number(e.target.value) : null)}
+                    className="w-full p-2 border border-gray-300 rounded-l-md"
+                  >
+                    <option value="">Guest Customer</option>
+                    {customers.map((customer) => (
+                      <option key={customer.id} value={customer.id}>
+                        {customer.name} ({customer.phone || 'No phone'})
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => setShowAddCustomerModal(true)}
+                    className="bg-blue-500 text-white px-3 rounded-r-md hover:bg-blue-600 flex items-center"
+                  >
+                    <FaPlus />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -442,8 +490,6 @@ const Cart = ({ onCloseCart }) => {
                 <FaMobileAlt className="mr-2" />
                 <span>M-Pesa</span>
               </button>
-              
-              
             </div>
 
             {paymentMethod === 'MPESA' && (
@@ -481,12 +527,16 @@ const Cart = ({ onCloseCart }) => {
             )}
           </div>
 
-          {/* Order Summary - Removed discount line */}
+          {/* Updated Order Summary Section */}
           <div className="bg-gray-50 rounded-lg p-3 mb-3">
             <h3 className="font-bold mb-2">Cart Summary</h3>
             <div className="flex justify-between mb-1">
-              <span>Subtotal:</span>
+              <span>Subtotal (incl. tax):</span>
               <span>Ksh {cart.subtotal?.toFixed(2) || '0.00'}</span>
+            </div>
+            <div className="flex justify-between mb-1">
+              <span>Discount:</span>
+              <span>Ksh {cart.discount?.toFixed(2) || '0.00'}</span>
             </div>
             <div className="flex justify-between mb-1">
               <span>Tax (16%):</span>
@@ -521,6 +571,93 @@ const Cart = ({ onCloseCart }) => {
               {checkoutError}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Add Customer Modal */}
+      {showAddCustomerModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold">Add New Customer</h3>
+              <button 
+                onClick={() => setShowAddCustomerModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <MdClose size={24} />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">Name *</label>
+                <input
+                  type="text"
+                  value={newCustomer.name}
+                  onChange={(e) => setNewCustomer({...newCustomer, name: e.target.value})}
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                  placeholder="Customer name"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">Phone</label>
+                <input
+                  type="text"
+                  value={newCustomer.phone}
+                  onChange={(e) => setNewCustomer({...newCustomer, phone: e.target.value})}
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                  placeholder="07XXXXXXXX"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={newCustomer.email}
+                  onChange={(e) => setNewCustomer({...newCustomer, email: e.target.value})}
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                  placeholder="customer@example.com"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">Address</label>
+                <textarea
+                  value={newCustomer.address}
+                  onChange={(e) => setNewCustomer({...newCustomer, address: e.target.value})}
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                  placeholder="Customer address"
+                  rows={3}
+                />
+              </div>
+              
+              <div className="flex justify-end space-x-3 pt-4">
+                <button
+                  onClick={() => setShowAddCustomerModal(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddCustomer}
+                  disabled={isAddingCustomer || !newCustomer.name}
+                  className={`px-4 py-2 rounded-md text-white ${
+                    isAddingCustomer || !newCustomer.name ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'
+                  }`}
+                >
+                  {isAddingCustomer ? (
+                    <span className="flex items-center">
+                      <FaSpinner className="animate-spin mr-2" />
+                      Adding...
+                    </span>
+                  ) : 'Add Customer'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

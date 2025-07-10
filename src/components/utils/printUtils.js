@@ -18,18 +18,19 @@ export const printReceipt = async (receipt, paymentMethod, cashierName) => {
     id: item.id,
     name: item.name || item.productName || (item.sku ? `SKU: ${item.sku}` : `Item ${item.id}`),
     quantity: item.quantity || 1,
-    price: item.price || 0,
+    price: item.price,
+    unitPrice: item.unitPrice || item.price || 0, // Add unit price
     discountAmount: item.discountAmount || item.discount || 0,
     discountPercentage: item.discountPercentage || 0,
     isSoldOut: item.isSoldOut || false
   }));
 
-  // Calculate totals
+  // Calculate totals - price already includes tax
   const subtotal = receipt.subtotal || items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const discount = receipt.discount || items.reduce((sum, item) => sum + (item.discountAmount * item.quantity), 0);
   const taxableAmount = Math.max(0, subtotal - discount);
-  const tax = receipt.tax || taxableAmount * 0.16;
-  const total = receipt.total || taxableAmount + tax;
+  const tax = receipt.tax || taxableAmount - (taxableAmount / 1.16); // Reverse calculate 16% tax
+  const total = receipt.total || subtotal; // Total is same as subtotal (tax inclusive)
 
   const receiptContent = `
     <!DOCTYPE html>
@@ -55,7 +56,7 @@ export const printReceipt = async (receipt, paymentMethod, cashierName) => {
         }
         .item-row {
           display: grid;
-          grid-template-columns: 50% 15% 15% 20%;
+          grid-template-columns: 40% 15% 15% 15% 15%;
           gap: 2px;
         }
       </style>
@@ -64,7 +65,7 @@ export const printReceipt = async (receipt, paymentMethod, cashierName) => {
       <!-- Header -->
       <div class="text-center mb-4">
         <div class="text-xl font-bold tracking-tight">INVENTORY STORE</div>
-        <div class="text-xs text-gray-600">123 Business Street, Nairobi</div>
+        <div class="text-xs text-gray-600">123 Business Street, KISII</div>
         <div class="text-xs text-gray-600">Tel: +254 700 000000</div>
       </div>
 
@@ -86,13 +87,15 @@ export const printReceipt = async (receipt, paymentMethod, cashierName) => {
         <div class="item-row text-xs font-semibold border-b pb-1 mb-1">
           <div>ITEM</div>
           <div class="text-right">QTY</div>
-          <div class="text-right">PRICE</div>
+          <div class="text-right">UNIT</div>
+          <div class="text-right">DISC</div>
           <div class="text-right">TOTAL</div>
         </div>
         
         ${items.map(item => {
-          const itemPrice = item.price;
-          const itemTotal = itemPrice * item.quantity;
+          const itemUnitPrice = item.unitPrice;
+          const itemDiscount = item.discountAmount;
+          const itemTotal = (itemUnitPrice - itemDiscount) * item.quantity;
           const soldOutClass = item.isSoldOut ? 'sold-out' : '';
           
           return `
@@ -102,7 +105,8 @@ export const printReceipt = async (receipt, paymentMethod, cashierName) => {
               ${item.isSoldOut ? ' (SOLD OUT)' : ''}
             </div>
             <div class="text-right">${item.quantity}</div>
-            <div class="text-right">${itemPrice.toFixed(2)}</div>
+            <div class="text-right">${itemUnitPrice.toFixed(2)}</div>
+            <div class="text-right">${itemDiscount > 0 ? itemDiscount.toFixed(2) : '-'}</div>
             <div class="text-right font-medium">${itemTotal.toFixed(2)}</div>
           </div>
           `;
@@ -112,8 +116,12 @@ export const printReceipt = async (receipt, paymentMethod, cashierName) => {
       <!-- Totals -->
       <div class="text-sm mt-4 space-y-1">
         <div class="flex justify-between">
-          <span>Subtotal:</span>
+          <span>Subtotal (incl. tax):</span>
           <span class="font-medium">Ksh ${subtotal.toFixed(2)}</span>
+        </div>
+        <div class="flex justify-between">
+          <span>Discount:</span>
+          <span class="font-medium">Ksh ${discount.toFixed(2)}</span>
         </div>
         <div class="flex justify-between">
           <span>Tax (16%):</span>
