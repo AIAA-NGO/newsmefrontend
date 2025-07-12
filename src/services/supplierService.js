@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://inventorymanagersystem.netlify.appapi';
+const API_BASE_URL = 'https://inventorymanagersystem.netlify.app/';
 
 // Get auth headers with token
 const getAuthHeader = () => {
