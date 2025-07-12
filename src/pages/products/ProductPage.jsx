@@ -262,102 +262,43 @@ const ProductPage = () => {
     return Object.keys(errors).length === 0;
   };
 
-  const handleUpdateProduct = async (e) => {
-    e.preventDefault();
+const handleUpdateProduct = async (e) => {
+  e.preventDefault();
+  
+  if (!validateForm()) {
+    const firstError = Object.values(formErrors)[0];
+    if (firstError) {
+      toast.error(firstError);
+    }
+    return;
+  }
+
+  try {
+    setIsLoading(true);
     
-    if (!validateForm()) {
-      // Show a small toast for the first error found
-      const firstError = Object.values(formErrors)[0];
-      if (firstError) {
-        toast.error(firstError, {
-          position: "top-right",
-          autoClose: 3000,
-          hideProgressBar: true,
-          closeOnClick: true,
-          pauseOnHover: true,
-          draggable: true,
-        });
-      }
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      
-      const formData = new FormData();
-      formData.append('name', editFormData.name);
-      formData.append('sku', editFormData.sku);
-      formData.append('barcode', editFormData.barcode);
-      formData.append('description', editFormData.description);
-      formData.append('price', editFormData.price);
-      formData.append('costPrice', editFormData.costPrice);
-      formData.append('quantityInStock', editFormData.quantityInStock);
-      formData.append('lowStockThreshold', editFormData.lowStockThreshold);
-      if (editFormData.expiryDate) {
-        formData.append('expiryDate', editFormData.expiryDate);
-      }
-      formData.append('categoryId', editFormData.categoryId);
-      if (editFormData.brandId) formData.append('brandId', editFormData.brandId);
-      if (editFormData.unitId) formData.append('unitId', editFormData.unitId);
-      formData.append('supplierId', editFormData.supplierId);
-      if (editFormData.imageFile) {
-        formData.append('imageFile', editFormData.imageFile);
-      }
-
-      const updatedProduct = await updateProduct(selectedProduct.id, formData);
-      
-      // Update the products list with the new data
-      const updatedProducts = products.map(p => 
-        p.id === selectedProduct.id ? { 
-          ...p, 
-          ...updatedProduct,
-          name: updatedProduct.name || p.name,
-          sku: updatedProduct.sku || p.sku,
-          barcode: updatedProduct.barcode || p.barcode,
-          description: updatedProduct.description || p.description,
-          price: updatedProduct.price || p.price,
-          costPrice: updatedProduct.costPrice || p.costPrice,
-          quantityInStock: updatedProduct.quantityInStock || p.quantityInStock,
-          lowStockThreshold: updatedProduct.lowStockThreshold || p.lowStockThreshold,
-          expiryDate: updatedProduct.expiryDate || p.expiryDate,
-          categoryId: updatedProduct.categoryId || p.categoryId,
-          brandId: updatedProduct.brandId || p.brandId,
-          unitId: updatedProduct.unitId || p.unitId,
-          supplierId: updatedProduct.supplierId || p.supplierId,
-          imageUrl: updatedProduct.imageUrl || p.imageUrl,
-          categoryName: relationships.categories.find(c => c.id === (updatedProduct.categoryId || p.categoryId))?.name || p.categoryName,
-          brandName: relationships.brands.find(b => b.id === (updatedProduct.brandId || p.brandId))?.name || p.brandName,
-          unitName: relationships.units.find(u => u.id === (updatedProduct.unitId || p.unitId))?.name || p.unitName,
-          supplierName: relationships.suppliers.find(s => s.id === (updatedProduct.supplierId || p.supplierId))?.name || p.supplierName
-        } : p
-      );
-      
-      setProducts(updatedProducts);
-      setFilteredProducts(updatedProducts);
-      
-      toast.success('Product updated successfully', {
-        position: "top-right",
-        autoClose: 3000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-        draggable: true,
-      });
-      setViewMode(null);
-    } catch (error) {
-      console.error('Update error:', error);
-      toast.error(error.response?.data?.message || 'Failed to update product. Please try again.', {
-        position: "top-right",
-        autoClose: 5000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-        draggable: true,
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    await updateProduct(selectedProduct.id, editFormData, editFormData.imageFile);
+    
+    // Update the products list with the new data
+    const updatedProducts = products.map(p => 
+      p.id === selectedProduct.id ? { 
+        ...p, 
+        ...editFormData,
+        imageUrl: editFormData.imageFile ? URL.createObjectURL(editFormData.imageFile) : p.imageUrl
+      } : p
+    );
+    
+    setProducts(updatedProducts);
+    setFilteredProducts(updatedProducts);
+    
+    toast.success('Product updated successfully');
+    setViewMode(null);
+  } catch (error) {
+    console.error('Update error:', error);
+    toast.error(error.response?.data?.message || 'Failed to update product. Please try again.');
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const exportToCSV = () => {
     const headers = ['SKU', 'Name', 'Category', 'Brand', 'Price', 'Stock'];

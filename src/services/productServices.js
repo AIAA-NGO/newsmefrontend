@@ -112,9 +112,42 @@ export const createProduct = async (formData) => {
   }
 };
 
-export const updateProduct = async (id, productData) => {
+export const updateProduct = async (id, productData, imageFile) => {
   try {
-    const response = await api.put(`/products/${id}`, productData);
+    const formData = new FormData();
+    
+    // Create the product request object
+    const productRequest = {
+      name: productData.name,
+      description: productData.description,
+      sku: productData.sku,
+      barcode: productData.barcode,
+      price: productData.price,
+      costPrice: productData.costPrice,
+      quantityInStock: productData.quantityInStock,
+      lowStockThreshold: productData.lowStockThreshold,
+      expiryDate: productData.expiryDate,
+      supplierId: productData.supplierId,
+      categoryId: productData.categoryId,
+      brandId: productData.brandId,
+      unitId: productData.unitId
+    };
+
+    // Add the request as a JSON blob
+    formData.append('request', new Blob([JSON.stringify(productRequest)], {
+      type: 'application/json'
+    }));
+
+    // Add the image file if it exists
+    if (imageFile) {
+      formData.append('imageFile', imageFile);
+    }
+
+    const response = await api.put(`/api/products/${id}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
     return transformProduct(response.data);
   } catch (error) {
     console.error("Error updating product:", error);
