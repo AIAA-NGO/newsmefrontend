@@ -840,26 +840,36 @@ const handleUpdateProduct = async (e) => {
                     </select>
                   </div>
 
-                  <div className="col-span-1">
-                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Supplier *</label>
-                    <select
-                      name="supplierId"
-                      value={editFormData.supplierId}
-                      onChange={handleEditFormChange}
-                      className={`w-full border ${formErrors.supplierId ? 'border-red-500' : 'border-gray-300'} px-2 py-1.5 sm:px-3 sm:py-2 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none transition text-xs sm:text-sm`}
-                      required
-                    >
-                      <option value="">Select Supplier</option>
-                      {relationships.suppliers.map(supplier => (
-                        <option key={supplier.id} value={supplier.id}>
-                          {supplier.name}
-                        </option>
-                      ))}
-                    </select>
-                    {formErrors.supplierId && (
-                      <p className="mt-1 text-xs text-red-500">{formErrors.supplierId}</p>
-                    )}
-                  </div>
+
+
+
+
+                      <div className="col-span-1">
+                        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Supplier *</label>
+                        <select
+                          name="supplierId"
+                          value={editFormData.supplierId}
+                          onChange={handleEditFormChange}
+                          className={`w-full border ${formErrors.supplierId ? 'border-red-500' : 'border-gray-300'} px-2 py-1.5 sm:px-3 sm:py-2 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none transition text-xs sm:text-sm bg-white`}
+                          required
+                        >
+                          <option value="">Select Supplier</option>
+                          {relationships.suppliers.map(supplier => (
+                            <option 
+                              key={supplier.id} 
+                              value={supplier.id}
+                              className="text-gray-900" // Ensure text color is visible
+                            >
+                              {supplier.companyName || supplier.name}
+                            </option>
+                          ))}
+                        </select>
+                        {formErrors.supplierId && (
+                          <p className="mt-1 text-xs text-red-500">{formErrors.supplierId}</p>
+                        )}
+                      </div>
+
+
 
                   <div className="col-span-2">
                     <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Description</label>
