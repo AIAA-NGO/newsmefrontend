@@ -143,7 +143,7 @@ export const updateProduct = async (id, productData, imageFile) => {
       formData.append('imageFile', imageFile);
     }
 
-    const response = await api.put(`/api/products/${id}`, formData, {
+    const response = await api.put(`/products/${id}`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
