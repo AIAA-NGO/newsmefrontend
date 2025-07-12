@@ -105,7 +105,7 @@ const ProductPage = () => {
               categoryName: categoriesData.find(c => c.id === (product.categoryId || product.category_id))?.name || 'N/A',
               brandName: brandsData.find(b => b.id === (product.brandId || product.brand_id))?.name || 'N/A',
               unitName: unitsData.find(u => u.id === (product.unitId || product.unit_id))?.name || 'N/A',
-              supplierName: suppliersData.find(s => s.id === (product.supplierId || product.supplier_id))?.name || 'N/A'
+              supplierName: suppliersData.find(s => s.id === (product.supplierId || product.supplier_id))?.companyName || 'N/A'
             };
           });
 
