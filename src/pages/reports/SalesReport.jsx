@@ -1,20 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Table, Card, Statistic, DatePicker, Button, Select, Input, 
-  Modal, Form, message, Tabs, Spin, Tag, Divider, Row, Col, Affix
+  Tabs, Spin, Tag, Divider, Row, Col, Affix, message
 } from 'antd';
 import { 
   DownloadOutlined, SearchOutlined,
   FileTextOutlined, BarChartOutlined,
-  ShoppingCartOutlined, PercentageOutlined, FileDoneOutlined,
-  DollarOutlined, CalendarOutlined, UserOutlined, TagOutlined,
-  ArrowUpOutlined
+  ShoppingCartOutlined, CalendarOutlined, 
+  ArrowUpOutlined, TagOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
 import { 
   getSales, getSalesByDateRange, exportSalesToCSV, 
-  createSale, getSalesReport, getProfitLossReport, 
+  getSalesReport, getProfitLossReport, 
   getProductPerformanceReport
 } from '../../services/salesService';
 
@@ -32,7 +31,6 @@ const colors = {
   error: '#f5222d',
   info: '#13c2c2',
   purple: '#722ed1',
-  magenta: '#eb2f96',
   background: '#f8f9fa',
   cardHeader: '#f0f2f5'
 };
@@ -48,8 +46,6 @@ const SalesReport = () => {
   ]);
   const [statusFilter, setStatusFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [isModalVisible, setIsModalVisible] = useState(false);
-  const [form] = Form.useForm();
   const [activeTab, setActiveTab] = useState('transactions');
   const [reportLoading, setReportLoading] = useState(false);
   const [salesReportData, setSalesReportData] = useState([]);
@@ -59,7 +55,6 @@ const SalesReport = () => {
   const [allTimeSalesTotal, setAllTimeSalesTotal] = useState(0);
   const [filteredSalesTotal, setFilteredSalesTotal] = useState({
     subtotal: 0,
-    tax: 0,
     discount: 0,
     total: 0
   });
@@ -79,29 +74,26 @@ const SalesReport = () => {
     CANCELLED: colors.error
   };
 
-  // Calculate totals from sales data including subtotal, tax, discount
+  // Calculate totals from sales data
   const calculateTotals = (salesData) => {
     return salesData.reduce((totals, sale) => {
       const subtotal = sale.subtotal || 0;
-      const tax = sale.taxAmount || 0;
       const discount = sale.discountAmount || 0;
-      const total = subtotal + tax - discount;
+      const total = subtotal - discount;
       
       return {
         subtotal: totals.subtotal + subtotal,
-        tax: totals.tax + tax,
         discount: totals.discount + discount,
         total: totals.total + total
       };
-    }, { subtotal: 0, tax: 0, discount: 0, total: 0 });
+    }, { subtotal: 0, discount: 0, total: 0 });
   };
 
   // Calculate individual sale total
   const calculateSaleTotal = (sale) => {
     const subtotal = sale.subtotal || 0;
-    const tax = sale.taxAmount || 0;
     const discount = sale.discountAmount || 0;
-    return subtotal + tax - discount;
+    return subtotal - discount;
   };
 
   // Fetch all sales data
@@ -224,15 +216,6 @@ const SalesReport = () => {
       key: 'subtotal',
       align: 'right',
       render: (amount) => <span style={{ fontWeight: 500 }}>{formatCurrency(amount)}</span>,
-      width: 120
-    },
-    {
-      title: 'Tax',
-      dataIndex: 'taxAmount',
-      key: 'tax',
-      align: 'right',
-      render: (amount) => <span style={{ color: colors.error }}>{formatCurrency(amount)}</span>,
-      responsive: ['lg'],
       width: 120
     },
     {
@@ -435,13 +418,13 @@ const SalesReport = () => {
         <Col xs={24} sm={12} md={6}>
           <Card 
             bordered={false} 
-            style={{ borderRadius: 8, background: `linear-gradient(135deg, ${colors.error} 0%, #f5222d 100%)` }}
+            style={{ borderRadius: 8, background: `linear-gradient(135deg, ${colors.success} 0%, #52c41a 100%)` }}
           >
             <Statistic
-              title={<span style={{ color: 'white' }}>Tax Collected</span>}
-              value={formatCurrency(filteredSalesTotal.tax)}
+              title={<span style={{ color: 'white' }}>Discounts</span>}
+              value={formatCurrency(filteredSalesTotal.discount)}
               valueStyle={{ color: 'white', fontWeight: 600 }}
-              prefix={<PercentageOutlined style={{ color: 'rgba(255,255,255,0.8)' }} />}
+              prefix={<FileTextOutlined style={{ color: 'rgba(255,255,255,0.8)' }} />}
             />
           </Card>
         </Col>
@@ -489,15 +472,11 @@ const SalesReport = () => {
                         <strong>{formatCurrency(filteredSalesTotal.subtotal)}</strong>
                       </Table.Summary.Cell>
                       <Table.Summary.Cell index={2} align="right">
-                        <strong style={{ color: colors.error }}>{formatCurrency(filteredSalesTotal.tax)}</strong>
-                      </Table.Summary.Cell>
-                      <Table.Summary.Cell index={3} align="right">
                         <strong style={{ color: colors.success }}>{formatCurrency(filteredSalesTotal.discount)}</strong>
                       </Table.Summary.Cell>
-                      <Table.Summary.Cell index={4} align="right">
+                      <Table.Summary.Cell index={3} align="right">
                         <strong style={{ color: colors.primary }}>{formatCurrency(filteredSalesTotal.total)}</strong>
                       </Table.Summary.Cell>
-                      <Table.Summary.Cell index={5}></Table.Summary.Cell>
                     </Table.Summary.Row>
                   </Table.Summary>
                 )}
@@ -508,7 +487,7 @@ const SalesReport = () => {
           <TabPane
             tab={
               <span style={{ fontWeight: 500 }}>
-                <BarChartOutlined style={{ color: colors.primary }} /> Reports
+                
               </span>
             }
             key="report"
@@ -522,7 +501,7 @@ const SalesReport = () => {
                         <Statistic
                           title="Total Revenue"
                           value={formatCurrency(profitLossData.totalRevenue)}
-                          prefix={<DollarOutlined />}
+                          prefix={<FileTextOutlined />}
                           valueStyle={{ color: colors.success }}
                         />
                       </Card>
@@ -532,7 +511,7 @@ const SalesReport = () => {
                         <Statistic
                           title="Total Cost"
                           value={formatCurrency(profitLossData.totalCost)}
-                          prefix={<DollarOutlined />}
+                          prefix={<FileTextOutlined />}
                           valueStyle={{ color: colors.error }}
                         />
                       </Card>
@@ -542,7 +521,7 @@ const SalesReport = () => {
                         <Statistic
                           title="Net Profit"
                           value={formatCurrency(profitLossData.netProfit)}
-                          prefix={<DollarOutlined />}
+                          prefix={<FileTextOutlined />}
                           valueStyle={{ color: profitLossData.netProfit >= 0 ? colors.success : colors.error }}
                         />
                       </Card>

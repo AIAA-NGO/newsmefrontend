@@ -14,7 +14,8 @@ import {
   Divider,
   Space,
   Statistic,
-  ConfigProvider
+  ConfigProvider,
+  Spin
 } from 'antd';
 import { createPurchase } from '../../services/purchaseService';
 import { getSuppliers } from '../../services/supplierService';
@@ -30,6 +31,7 @@ const CreatePurchase = () => {
   const [products, setProducts] = useState([]);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [fetchingProducts, setFetchingProducts] = useState(false);
   const [totalAmount, setTotalAmount] = useState(0);
 
   useEffect(() => {
@@ -47,18 +49,27 @@ const CreatePurchase = () => {
   const fetchSuppliers = async () => {
     try {
       const data = await getSuppliers();
-      setSuppliers(data);
+      setSuppliers(Array.isArray(data) ? data : []);
     } catch (error) {
+      console.error('Failed to fetch suppliers:', error);
       message.error('Failed to fetch suppliers');
     }
   };
 
   const fetchProducts = async () => {
+    setFetchingProducts(true);
     try {
       const data = await getAllProducts();
+      if (!Array.isArray(data)) {
+        throw new Error('Products data is not an array');
+      }
       setProducts(data);
     } catch (error) {
+      console.error('Failed to fetch products:', error);
       message.error('Failed to fetch products');
+      setProducts([]);
+    } finally {
+      setFetchingProducts(false);
     }
   };
 
@@ -100,6 +111,13 @@ const CreatePurchase = () => {
         return;
       }
       
+      // Validate all items have product selected
+      const invalidItems = items.filter(item => !item.productId);
+      if (invalidItems.length > 0) {
+        message.error('Please select a product for all items');
+        return;
+      }
+      
       const purchaseData = {
         supplierId: values.supplierId,
         orderDate: values.orderDate.format('YYYY-MM-DDTHH:mm:ss'),
@@ -112,12 +130,13 @@ const CreatePurchase = () => {
       };
       
       setLoading(true);
-      await createPurchase(purchaseData);
+      const result = await createPurchase(purchaseData);
       message.success('Purchase created successfully');
       form.resetFields();
       setItems([]);
       setTotalAmount(0);
     } catch (error) {
+      console.error('Failed to create purchase:', error);
       message.error(error.message || 'Failed to create purchase');
     } finally {
       setLoading(false);
@@ -150,6 +169,7 @@ const CreatePurchase = () => {
                     showSearch 
                     optionFilterProp="children"
                     style={{ width: '100%' }}
+                    loading={!suppliers.length}
                   >
                     {suppliers.map(supplier => (
                       <Option key={supplier.id} value={supplier.id}>
@@ -176,96 +196,100 @@ const CreatePurchase = () => {
 
             <Divider orientation="left">Items</Divider>
             
-            <Table
-              dataSource={items}
-              rowKey="id"
-              pagination={false}
-              columns={[
-                {
-                  title: 'Product',
-                  dataIndex: 'productId',
-                  render: (value, _, index) => (
-                    <Select
-                      placeholder="Select product"
-                      value={value}
-                      style={{ width: '100%' }}
-                      onChange={(val) => handleItemChange(index, 'productId', val)}
-                      showSearch
-                      optionFilterProp="children"
-                    >
-                      {products.map(product => (
-                        <Option key={product.id} value={product.id}>
-                          {product.name}
-                        </Option>
-                      ))}
-                    </Select>
-                  ),
-                  align: 'center'
-                },
-                {
-                  title: 'Quantity',
-                  dataIndex: 'quantity',
-                  render: (value, _, index) => (
-                    <InputNumber
-                      min={1}
-                      value={value}
-                      onChange={(val) => handleItemChange(index, 'quantity', val)}
-                      style={{ width: '100%' }}
-                    />
-                  ),
-                  width: '15%'
-                },
-                {
-                  title: 'Unit Price (KSH)',
-                  dataIndex: 'unitPrice',
-                  render: (value, _, index) => (
-                    <InputNumber
-                      min={0}
-                      value={value}
-                      onChange={(val) => handleItemChange(index, 'unitPrice', val)}
-                      style={{ width: '100%' }}
-                      formatter={value => `KSh ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                      parser={value => value.replace(/KSh\s?|(,*)/g, '')}
-                    />
-                  ),
-                  width: '20%'
-                },
-                {
-                  title: 'Total (KSH)',
-                  render: (_, record) => (
-                    <Text>{formatCurrency((record.quantity || 0) * (record.unitPrice || 0))}</Text>
-                  ),
-                  align: 'right',
-                  width: '20%'
-                },
-                {
-                  title: 'Action',
-                  render: (_, __, index) => (
-                    <Button
-                      danger
-                      type="text"
-                      icon={<MinusOutlined />}
-                      onClick={() => handleRemoveItem(index)}
-                    />
-                  ),
-                  width: '10%'
-                },
-              ]}
-              footer={() => (
-                <Button
-                  type="dashed"
-                  onClick={handleAddItem}
-                  icon={<PlusOutlined />}
-                  block
-                >
-                  Add Item
-                </Button>
-              )}
-              locale={{
-                emptyText: 'No items added yet'
-              }}
-              style={{ width: '100%' }}
-            />
+            <Spin spinning={fetchingProducts} tip="Loading products...">
+              <Table
+                dataSource={items}
+                rowKey="id"
+                pagination={false}
+                columns={[
+                  {
+                    title: 'Product',
+                    dataIndex: 'productId',
+                    render: (value, _, index) => (
+                      <Select
+                        placeholder={fetchingProducts ? "Loading products..." : "Select product"}
+                        value={value}
+                        style={{ width: '100%' }}
+                        onChange={(val) => handleItemChange(index, 'productId', val)}
+                        showSearch
+                        optionFilterProp="children"
+                        loading={fetchingProducts}
+                        notFoundContent={fetchingProducts ? null : "No products found"}
+                      >
+                        {products.map(product => (
+                          <Option key={product.id} value={product.id}>
+                            {product.name} ({product.sku})
+                          </Option>
+                        ))}
+                      </Select>
+                    ),
+                    align: 'center'
+                  },
+                  {
+                    title: 'Quantity',
+                    dataIndex: 'quantity',
+                    render: (value, _, index) => (
+                      <InputNumber
+                        min={1}
+                        value={value}
+                        onChange={(val) => handleItemChange(index, 'quantity', val)}
+                        style={{ width: '100%' }}
+                      />
+                    ),
+                    width: '15%'
+                  },
+                  {
+                    title: 'Unit Price (KSH)',
+                    dataIndex: 'unitPrice',
+                    render: (value, _, index) => (
+                      <InputNumber
+                        min={0}
+                        value={value}
+                        onChange={(val) => handleItemChange(index, 'unitPrice', val)}
+                        style={{ width: '100%' }}
+                        formatter={value => `KSh ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                        parser={value => value.replace(/KSh\s?|(,*)/g, '')}
+                      />
+                    ),
+                    width: '20%'
+                  },
+                  {
+                    title: 'Total (KSH)',
+                    render: (_, record) => (
+                      <Text>{formatCurrency((record.quantity || 0) * (record.unitPrice || 0))}</Text>
+                    ),
+                    align: 'right',
+                    width: '20%'
+                  },
+                  {
+                    title: 'Action',
+                    render: (_, __, index) => (
+                      <Button
+                        danger
+                        type="text"
+                        icon={<MinusOutlined />}
+                        onClick={() => handleRemoveItem(index)}
+                      />
+                    ),
+                    width: '10%'
+                  },
+                ]}
+                footer={() => (
+                  <Button
+                    type="dashed"
+                    onClick={handleAddItem}
+                    icon={<PlusOutlined />}
+                    block
+                  >
+                    Add Item
+                  </Button>
+                )}
+                locale={{
+                  emptyText: 'No items added yet'
+                }}
+                style={{ width: '100%' }}
+              />
+            </Spin>
 
             <Divider />
 

@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Table, Button, Statistic, Tag, message, Card, Row, Col } from 'antd';
 import { Download } from 'lucide-react';
 import { InventoryService } from '../../services/InventoryService';
 import { getAllProducts } from '../../services/productServices';
 import { getAllCategories } from '../../services/categories';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://inventorymanagementsystem-latest-37zl.onrender.com/api';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
 
 const InventoryValuationReport = () => {
   const [data, setData] = useState([]);
@@ -28,7 +28,7 @@ const InventoryValuationReport = () => {
     }).format(value || 0);
   };
 
-  const columns = [
+  const columns = useMemo(() => [
     { 
       title: 'SKU', 
       dataIndex: 'sku', 
@@ -65,11 +65,11 @@ const InventoryValuationReport = () => {
     },
     { 
       title: 'Unit Cost', 
-      dataIndex: 'cost_price', 
+      dataIndex: 'costPrice', 
       key: 'unitCost', 
       render: val => formatCurrency(val || 0),
       width: 120,
-      sorter: (a, b) => (a.cost_price || 0) - (b.cost_price || 0),
+      sorter: (a, b) => (a.costPrice || 0) - (b.costPrice || 0),
       responsive: ['lg']
     },
     { 
@@ -82,7 +82,7 @@ const InventoryValuationReport = () => {
     },
     { 
       title: 'Reorder Level', 
-      dataIndex: 'low_stock_threshold', 
+      dataIndex: 'lowStockThreshold', 
       key: 'reorderLevel',
       width: 100,
       render: val => <span className="font-medium">{val || 0}</span>,
@@ -108,7 +108,7 @@ const InventoryValuationReport = () => {
       ],
       onFilter: (value, record) => record.stockStatus === value,
     },
-  ];
+  ], []);
 
   const fetchCategories = async () => {
     try {
@@ -122,6 +122,13 @@ const InventoryValuationReport = () => {
     }
   };
 
+  const getStockStatus = (currentStock, reorderLevel) => {
+    if (currentStock === 0) return 'OUT OF STOCK';
+    if (currentStock <= reorderLevel * 0.5) return 'LOW';
+    if (currentStock <= reorderLevel) return 'MEDIUM';
+    return 'HIGH';
+  };
+
   const fetchInventoryReport = async () => {
     setLoading(true);
     try {
@@ -130,31 +137,38 @@ const InventoryValuationReport = () => {
         getAllProducts()
       ]);
 
+      // Get inventory status for all products at once if possible
       const inventoryStatus = await InventoryService.getInventoryStatus();
-
+      
       const processedData = products.map(product => {
+        // Find inventory item for this product
         const inventoryItem = Array.isArray(inventoryStatus) 
-          ? inventoryStatus.find(item => item.productId === product.id) || {}
-          : {};
+          ? inventoryStatus.find(item => item.productId === product.id) 
+          : null;
 
-        const currentStock = inventoryItem.quantity || product.quantity_in_stock || 0;
-        const reorderLevel = product.low_stock_threshold || 0;
-        const unitCost = product.cost_price || 0;
+        // Use inventory quantity if available, otherwise fall back to product quantity
+        const currentStock = inventoryItem?.quantity ?? product.quantityInStock ?? 0;
+        const reorderLevel = product.lowStockThreshold || 0;
+        const unitCost = product.costPrice || 0;
         const totalValue = unitCost * currentStock;
         const stockStatus = getStockStatus(currentStock, reorderLevel);
         
-        const productCategory = categoriesData.find(cat => cat.id === product.category_id);
+        // Find category name
+        const productCategory = categoriesData.find(cat => cat.id === product.categoryId);
         const categoryName = productCategory?.name || product.category?.name || 'Uncategorized';
         
         return {
           ...product,
           ...inventoryItem,
           id: product.id,
+          sku: product.sku,
+          name: product.name,
           currentStock,
           totalValue,
           stockStatus,
           categoryName,
-          reorderLevel
+          costPrice: unitCost,
+          lowStockThreshold: reorderLevel
         };
       });
 
@@ -168,13 +182,6 @@ const InventoryValuationReport = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const getStockStatus = (currentStock, reorderLevel) => {
-    if (currentStock === 0) return 'OUT OF STOCK';
-    if (currentStock <= reorderLevel * 0.5) return 'LOW';
-    if (currentStock <= reorderLevel) return 'MEDIUM';
-    return 'HIGH';
   };
 
   const calculateSummary = (inventoryData) => {
@@ -196,12 +203,17 @@ const InventoryValuationReport = () => {
 
   const updateCategoryFilters = (inventoryData) => {
     const uniqueCategories = [...new Set(inventoryData.map(item => item.categoryName))];
-    const categoryColumn = columns.find(col => col.key === 'category');
-    if (categoryColumn) {
-      categoryColumn.filters = uniqueCategories.map(category => ({
-        text: category,
-        value: category
-      }));
+    const categoryColumnIndex = columns.findIndex(col => col.key === 'category');
+    if (categoryColumnIndex >= 0) {
+      const updatedColumns = [...columns];
+      updatedColumns[categoryColumnIndex] = {
+        ...updatedColumns[categoryColumnIndex],
+        filters: uniqueCategories.map(category => ({
+          text: category,
+          value: category
+        }))
+      };
+      // Note: In a real component, you would setColumns(updatedColumns) if columns were state
     }
   };
 
@@ -223,9 +235,9 @@ const InventoryValuationReport = () => {
             name: item.name,
             category: item.categoryName,
             currentStock: item.currentStock,
-            unitCost: item.cost_price,
+            unitCost: item.costPrice,
             totalValue: item.totalValue,
-            reorderLevel: item.low_stock_threshold,
+            reorderLevel: item.lowStockThreshold,
             status: item.stockStatus
           }))
         })

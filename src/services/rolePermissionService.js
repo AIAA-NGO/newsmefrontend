@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://inventorymanagementsystem-latest-37zl.onrender.com/api';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://inventorymanagersystem.netlify.appapi';
 
 const getAuthHeader = () => ({
   headers: {

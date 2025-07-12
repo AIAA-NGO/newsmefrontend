@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import * as brandAPI from '../../services/brand';
-import { Printer, Download } from 'lucide-react';
+import { Printer, Download, PlusCircle } from 'lucide-react';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -15,6 +15,7 @@ const BrandsPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     fetchBrands();
@@ -86,7 +87,7 @@ const BrandsPage = () => {
       setName('');
       setDescription('');
       setError('');
-      document.getElementById('addBrandModal').close();
+      setIsModalOpen(false);
       toast.success('Brand added successfully', {
         position: "top-right",
         autoClose: 3000,
@@ -315,25 +316,24 @@ const BrandsPage = () => {
           <div className="flex gap-2">
             <button
               onClick={exportToCSV}
-              className="bg-white hover:bg-gray-100 border border-gray-300 p-2 rounded-md shadow-sm transition flex items-center justify-center"
-              title="Export Brands"
+              className="flex items-center gap-1 px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
             >
-              <Download size={18} className="text-gray-700" />
-              <span className="hidden sm:inline ml-1 text-sm">Export</span>
+              <Download size={16} />
+              <span className="hidden sm:inline">Export</span>
             </button>
             <button
               onClick={handlePrint}
-              className="bg-white hover:bg-gray-100 border border-gray-300 p-2 rounded-md shadow-sm transition flex items-center justify-center"
-              title="Print Brands"
+              className="flex items-center gap-1 px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
             >
-              <Printer size={18} className="text-gray-700" />
-              <span className="hidden sm:inline ml-1 text-sm">Print</span>
+              <Printer size={16} />
+              <span className="hidden sm:inline">Print</span>
             </button>
             <button
-              onClick={() => document.getElementById('addBrandModal').showModal()}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-md shadow-sm transition duration-200 text-sm sm:text-base flex items-center justify-center gap-1"
+              onClick={() => setIsModalOpen(true)}
+              className="flex items-center gap-1 px-4 py-2 bg-blue-600 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
             >
-              Add Brand
+              <PlusCircle size={16} />
+              <span>Add Brand</span>
             </button>
           </div>
         </div>
@@ -427,66 +427,101 @@ const BrandsPage = () => {
       </div>
 
       {/* Add Brand Modal */}
-      <dialog id="addBrandModal" className="modal">
-        <div className="modal-box">
-          <form method="dialog">
-            <button className="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
-          </form>
-          <h3 className="font-bold text-lg mb-4">Add New Brand</h3>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Brand Name *</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Enter brand name"
-                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-                required
-                disabled={loading}
-              />
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+              <div className="absolute inset-0 bg-gray-500 opacity-75" onClick={() => setIsModalOpen(false)}></div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Enter brand description (optional)"
-                rows={3}
-                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-                disabled={loading}
-              />
-            </div>
-            {error && (
-              <div className="p-2 bg-red-100 text-red-700 rounded text-sm">
-                {error}
+            
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            
+            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div className="flex items-start justify-between">
+                  <h3 className="text-lg leading-6 font-medium text-gray-900">Add New Brand</h3>
+                  <button
+                    type="button"
+                    className="ml-1 bg-white rounded-md text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    onClick={() => setIsModalOpen(false)}
+                  >
+                    <span className="sr-only">Close</span>
+                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                
+                <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+                  <div>
+                    <label htmlFor="brand-name" className="block text-sm font-medium text-gray-700 mb-1">
+                      Brand Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      id="brand-name"
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Enter brand name"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      required
+                      disabled={loading}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label htmlFor="brand-description" className="block text-sm font-medium text-gray-700 mb-1">
+                      Description
+                    </label>
+                    <textarea
+                      id="brand-description"
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      placeholder="Enter brand description (optional)"
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      disabled={loading}
+                    />
+                  </div>
+                  
+                  {error && (
+                    <div className="p-3 bg-red-50 text-red-700 rounded-md text-sm">
+                      {error}
+                    </div>
+                  )}
+                </form>
               </div>
-            )}
-            <div className="modal-action">
-              <button
-                type="button"
-                onClick={() => document.getElementById('addBrandModal').close()}
-                className="btn btn-ghost mr-2"
-                disabled={loading}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="btn btn-primary"
-                disabled={loading}
-              >
-                {loading ? (
-                  <>
-                    <span className="loading loading-spinner"></span>
-                    Adding...
-                  </>
-                ) : 'Add Brand'}
-              </button>
+              
+              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={loading}
+                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-75 disabled:cursor-not-allowed"
+                >
+                  {loading ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Adding...
+                    </>
+                  ) : 'Add Brand'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  disabled={loading}
+                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
-          </form>
+          </div>
         </div>
-      </dialog>
+      )}
 
       {/* Edit Modal */}
       {editingId && (

@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://inventorymanagementsystem-latest-37zl.onrender.com/api';
+const API_BASE_URL = 'https://inventorymanagersystem.netlify.appapi';
 
 // Get auth headers with token
 const getAuthHeader = () => {

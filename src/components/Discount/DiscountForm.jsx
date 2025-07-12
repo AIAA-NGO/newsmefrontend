@@ -14,16 +14,21 @@ const DiscountForm = () => {
   
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [productsLoading, setProductsLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
   useEffect(() => {
     const fetchProducts = async () => {
+      setProductsLoading(true);
       try {
-        const productsData = await getAllProducts();
-        setProducts(productsData);
+        const response = await getAllProducts();
+        setProducts(response.content || []); // Extract products from content property
       } catch (err) {
         setError('Failed to fetch products');
+        setProducts([]);
+      } finally {
+        setProductsLoading(false);
       }
     };
     
@@ -49,6 +54,13 @@ const DiscountForm = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validate at least one product is selected
+    if (discount.productIds.length === 0) {
+      setError('Please select at least one product');
+      return;
+    }
+    
     setLoading(true);
     setError('');
     setSuccess('');
@@ -187,8 +199,10 @@ const DiscountForm = () => {
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Apply to Products *
           </label>
-          {products.length === 0 ? (
+          {productsLoading ? (
             <p className="text-gray-500">Loading products...</p>
+          ) : products.length === 0 ? (
+            <p className="text-gray-500">No products available</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 max-h-60 overflow-y-auto p-2 border border-gray-200 rounded-md">
               {products.map(product => (
@@ -212,7 +226,7 @@ const DiscountForm = () => {
         <div className="flex justify-end">
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || productsLoading}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Creating...' : 'Create Discount'}

@@ -24,7 +24,7 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://inventorymanagementsystem-latest-37zl.onrender.com/api';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://inventorymanagersystem.netlify.appapi';
 
 export default function SalesReturnPage() {
   const [sales, setSales] = useState([]);

@@ -11,13 +11,16 @@ import {
   Typography,
   Badge,
   Descriptions,
-  Divider
+  Divider,
+  Image,
+  Tooltip
 } from 'antd';
 import { 
   CheckCircleOutlined, 
   CloseCircleOutlined, 
   EyeOutlined,
-  ArrowLeftOutlined
+  ArrowLeftOutlined,
+  InfoCircleOutlined
 } from '@ant-design/icons';
 import { 
   getPendingPurchases,
@@ -34,6 +37,7 @@ const ReceivePurchases = () => {
   const [selectedPurchase, setSelectedPurchase] = useState(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [actionType, setActionType] = useState(null);
+  const [confirmLoading, setConfirmLoading] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -44,9 +48,10 @@ const ReceivePurchases = () => {
     setLoading(true);
     try {
       const data = await getPendingPurchases();
-      setPurchases(data);
+      setPurchases(Array.isArray(data) ? data : []);
     } catch (error) {
-      message.error(error.message);
+      console.error('Error fetching purchases:', error);
+      message.error(error.response?.data?.message || error.message || 'Failed to fetch purchases');
     } finally {
       setLoading(false);
     }
@@ -66,7 +71,7 @@ const ReceivePurchases = () => {
 
   const confirmAction = async () => {
     try {
-      setLoading(true);
+      setConfirmLoading(true);
       if (actionType === 'receive') {
         await receivePurchase(selectedPurchase.id);
         message.success('Purchase received successfully and inventory updated!');
@@ -74,23 +79,29 @@ const ReceivePurchases = () => {
         await cancelPurchase(selectedPurchase.id);
         message.success('Purchase cancelled successfully!');
       }
-      fetchPendingPurchases();
+      await fetchPendingPurchases();
       setIsModalVisible(false);
     } catch (error) {
-      message.error(error.message);
+      console.error('Error processing purchase:', error);
+      message.error(error.response?.data?.message || error.message || 'Failed to process purchase');
     } finally {
-      setLoading(false);
+      setConfirmLoading(false);
     }
   };
 
   const getStatusTag = (status) => {
     const statusMap = {
-      'PENDING': { color: 'orange', text: 'Pending' },
-      'RECEIVED': { color: 'green', text: 'Received' },
-      'CANCELLED': { color: 'red', text: 'Cancelled' }
+      'PENDING': { color: 'orange', text: 'Pending', icon: <InfoCircleOutlined /> },
+      'RECEIVED': { color: 'green', text: 'Received', icon: <CheckCircleOutlined /> },
+      'CANCELLED': { color: 'red', text: 'Cancelled', icon: <CloseCircleOutlined /> },
+      'PARTIALLY_RECEIVED': { color: 'blue', text: 'Partially Received', icon: <InfoCircleOutlined /> }
     };
-    const statusConfig = statusMap[status] || { color: 'default', text: status };
-    return <Tag color={statusConfig.color}>{statusConfig.text}</Tag>;
+    const statusConfig = statusMap[status] || { color: 'default', text: status, icon: null };
+    return (
+      <Tag icon={statusConfig.icon} color={statusConfig.color}>
+        {statusConfig.text}
+      </Tag>
+    );
   };
 
   const columns = [
@@ -100,11 +111,17 @@ const ReceivePurchases = () => {
       key: 'id',
       render: (id) => `PO-${id.toString().padStart(5, '0')}`,
       sorter: (a, b) => a.id - b.id,
+      width: 120,
     },
     {
       title: 'Supplier',
       dataIndex: ['supplier', 'companyName'],
       key: 'supplier',
+      render: (text, record) => (
+        <Tooltip title={`ID: ${record.supplier?.id}`}>
+          <span>{text || 'N/A'}</span>
+        </Tooltip>
+      ),
     },
     {
       title: 'Order Date',
@@ -112,55 +129,72 @@ const ReceivePurchases = () => {
       key: 'orderDate',
       render: (date) => dayjs(date).format('DD/MM/YYYY HH:mm'),
       sorter: (a, b) => new Date(a.orderDate) - new Date(b.orderDate),
+      width: 150,
+    },
+    {
+      title: 'Items',
+      dataIndex: 'items',
+      key: 'items',
+      render: (items) => items?.length || 0,
+      align: 'center',
+      width: 100,
     },
     {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
       render: (status) => getStatusTag(status),
+      width: 150,
     },
     {
       title: 'Total Amount',
       dataIndex: 'totalAmount',
       key: 'totalAmount',
-      render: (amount) => `KES ${amount?.toFixed(2) || '0.00'}`,
+      render: (amount) => (
+        <Text strong>KES {amount?.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+      ),
       sorter: (a, b) => a.totalAmount - b.totalAmount,
+      align: 'right',
+      width: 150,
     },
     {
       title: 'Actions',
       key: 'actions',
+      fixed: 'right',
       render: (_, record) => (
         <Space size="middle">
           <Button 
             icon={<EyeOutlined />} 
             onClick={() => handleViewDetails(record)}
           >
-            View
+            Details
           </Button>
-          <Button 
-            type="primary" 
-            icon={<CheckCircleOutlined />}
-            onClick={() => handleAction('receive', record)}
-            disabled={record.status !== 'PENDING'}
-            style={{
-              backgroundColor: record.status === 'PENDING' ? '#52c41a' : undefined,
-              borderColor: record.status === 'PENDING' ? '#52c41a' : undefined,
-              fontWeight: 'bold',
-              boxShadow: '0 2px 0 rgba(82, 196, 26, 0.1)'
-            }}
-          >
-            RECEIVE
-          </Button>
-          <Button 
-            danger 
-            icon={<CloseCircleOutlined />}
-            onClick={() => handleAction('cancel', record)}
-            disabled={record.status !== 'PENDING'}
-          >
-            Cancel
-          </Button>
+          {record.status === 'PENDING' && (
+            <>
+              <Button 
+                type="primary" 
+                icon={<CheckCircleOutlined />}
+                onClick={() => handleAction('receive', record)}
+                style={{
+                  backgroundColor: '#52c41a',
+                  borderColor: '#52c41a',
+                  fontWeight: 'bold',
+                }}
+              >
+                Receive
+              </Button>
+              <Button 
+                danger 
+                icon={<CloseCircleOutlined />}
+                onClick={() => handleAction('cancel', record)}
+              >
+                Cancel
+              </Button>
+            </>
+          )}
         </Space>
       ),
+      width: 250,
     },
   ];
 
@@ -170,40 +204,67 @@ const ReceivePurchases = () => {
         <Button 
           type="text" 
           icon={<ArrowLeftOutlined />} 
-          onClick={() => navigate('/purchases')}
+          onClick={() => navigate(-1)}
           style={{ marginBottom: 16 }}
         >
-          Back to Purchases
+          Back
         </Button>
 
         <Title level={3}>Receive Purchases</Title>
         
         <Card>
-          <Badge.Ribbon text={`${purchases.length} Pending`} color="orange">
+          <Badge.Ribbon 
+            text={`${purchases.length} Pending`} 
+            color="orange"
+            style={{ top: -1, right: -1 }}
+          >
             <Table
               columns={columns}
               dataSource={purchases}
               rowKey="id"
               loading={loading}
-              pagination={{ pageSize: 10 }}
-              scroll={{ x: true }}
+              pagination={{ 
+                pageSize: 10,
+                showSizeChanger: true,
+                pageSizeOptions: ['10', '20', '50', '100']
+              }}
+              scroll={{ x: 1300 }}
+              bordered
             />
           </Badge.Ribbon>
         </Card>
 
         {/* Purchase Details Modal */}
         <Modal
-          title={`Purchase Order - PO-${selectedPurchase?.id?.toString().padStart(5, '0')}`}
+          title={
+            <span>
+              Purchase Order - PO-{selectedPurchase?.id?.toString().padStart(5, '0')}
+              {selectedPurchase?.status && (
+                <span style={{ marginLeft: 8 }}>
+                  {getStatusTag(selectedPurchase.status)}
+                </span>
+              )}
+            </span>
+          }
           open={isModalVisible}
           onCancel={() => setIsModalVisible(false)}
           footer={null}
-          width={800}
+          width={900}
+          centered
+          destroyOnClose
         >
           {selectedPurchase && (
             <>
-              <Descriptions bordered column={1}>
-                <Descriptions.Item label="Supplier">
-                  {selectedPurchase.supplier?.companyName}
+              <Descriptions bordered column={2} size="small">
+                <Descriptions.Item label="Supplier" span={2}>
+                  <Text strong>
+                    {selectedPurchase.supplier?.companyName || 'N/A'}
+                    {selectedPurchase.supplier?.contactNumber && (
+                      <Text type="secondary" style={{ marginLeft: 8 }}>
+                        ({selectedPurchase.supplier.contactNumber})
+                      </Text>
+                    )}
+                  </Text>
                 </Descriptions.Item>
                 <Descriptions.Item label="Order Date">
                   {dayjs(selectedPurchase.orderDate).format('DD/MM/YYYY HH:mm')}
@@ -218,37 +279,86 @@ const ReceivePurchases = () => {
                     {dayjs(selectedPurchase.cancellationDate).format('DD/MM/YYYY HH:mm')}
                   </Descriptions.Item>
                 )}
-                <Descriptions.Item label="Status">
-                  {getStatusTag(selectedPurchase.status)}
+                <Descriptions.Item label="Total Items">
+                  {selectedPurchase.items?.length || 0}
                 </Descriptions.Item>
-                <Descriptions.Item label="Total Amount">
-                  KES {selectedPurchase.totalAmount?.toFixed(2)}
+                <Descriptions.Item label="Total Amount" span={2}>
+                  <Text strong type="success" style={{ fontSize: '1.1em' }}>
+                    KES {selectedPurchase.totalAmount?.toLocaleString('en-KE', { 
+                      minimumFractionDigits: 2, 
+                      maximumFractionDigits: 2 
+                    })}
+                  </Text>
                 </Descriptions.Item>
               </Descriptions>
 
-              <Divider orientation="left">Items</Divider>
+              <Divider orientation="left">Purchased Items</Divider>
               
               <Table
-                dataSource={selectedPurchase.items}
+                dataSource={selectedPurchase.items || []}
                 rowKey="id"
                 pagination={false}
+                scroll={{ y: 300 }}
                 columns={[
                   {
                     title: 'Product',
                     dataIndex: ['product', 'name'],
+                    render: (text, record) => (
+                      <Space>
+                        {record.product?.imageUrl && (
+                          <Image
+                            src={record.product.imageUrl}
+                            width={40}
+                            height={40}
+                            style={{ objectFit: 'cover' }}
+                            preview={false}
+                            fallback="https://via.placeholder.com/40"
+                          />
+                        )}
+                        <div>
+                          <div>{text || 'N/A'}</div>
+                          {record.product?.sku && (
+                            <Text type="secondary" style={{ fontSize: 12 }}>
+                              SKU: {record.product.sku}
+                            </Text>
+                          )}
+                        </div>
+                      </Space>
+                    ),
+                    width: 250,
                   },
                   {
                     title: 'Quantity',
                     dataIndex: 'quantity',
+                    align: 'center',
+                    width: 100,
                   },
                   {
                     title: 'Unit Price (KES)',
                     dataIndex: 'unitPrice',
-                    render: (price) => `KES ${price?.toFixed(2)}`,
+                    render: (price) => (
+                      <Text strong>
+                        {price?.toLocaleString('en-KE', { 
+                          minimumFractionDigits: 2, 
+                          maximumFractionDigits: 2 
+                        })}
+                      </Text>
+                    ),
+                    align: 'right',
+                    width: 150,
                   },
                   {
                     title: 'Total (KES)',
-                    render: (_, record) => `KES ${(record.quantity * record.unitPrice)?.toFixed(2)}`,
+                    render: (_, record) => (
+                      <Text strong type="primary">
+                        {(record.quantity * record.unitPrice)?.toLocaleString('en-KE', { 
+                          minimumFractionDigits: 2, 
+                          maximumFractionDigits: 2 
+                        })}
+                      </Text>
+                    ),
+                    align: 'right',
+                    width: 150,
                   },
                 ]}
               />
@@ -257,21 +367,31 @@ const ReceivePurchases = () => {
                 <>
                   <Divider />
                   <div style={{ textAlign: 'center', marginTop: 16 }}>
-                    <Text strong>
+                    <Text strong style={{ fontSize: '1.1em' }}>
                       {actionType === 'receive' 
                         ? 'Are you sure you want to receive this purchase and update inventory?' 
                         : 'Are you sure you want to cancel this purchase?'}
                     </Text>
+                    {actionType === 'receive' && (
+                      <div style={{ marginTop: 8 }}>
+                        <Text type="warning">
+                          This action cannot be undone. Inventory levels will be updated.
+                        </Text>
+                      </div>
+                    )}
                   </div>
-                  <div style={{ textAlign: 'right', marginTop: 16 }}>
+                  <div style={{ textAlign: 'right', marginTop: 24 }}>
                     <Space>
-                      <Button onClick={() => setIsModalVisible(false)}>
+                      <Button 
+                        onClick={() => setIsModalVisible(false)}
+                        disabled={confirmLoading}
+                      >
                         Cancel
                       </Button>
                       <Button 
                         type={actionType === 'receive' ? 'primary' : 'danger'} 
                         onClick={confirmAction}
-                        loading={loading}
+                        loading={confirmLoading}
                         icon={actionType === 'receive' ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
                         style={actionType === 'receive' ? { 
                           backgroundColor: '#52c41a',
@@ -279,7 +399,7 @@ const ReceivePurchases = () => {
                           fontWeight: 'bold'
                         } : undefined}
                       >
-                        {actionType === 'receive' ? 'CONFIRM RECEIPT' : 'Confirm Cancel'}
+                        {actionType === 'receive' ? 'Confirm Receipt' : 'Confirm Cancellation'}
                       </Button>
                     </Space>
                   </div>

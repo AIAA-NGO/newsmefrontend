@@ -34,7 +34,22 @@ const extractArrayData = (data) => {
     console.error("Invalid response format:", data);
     return [];
   }
-  return data;
+  
+  // Handle other possible array locations
+  const possibleKeys = ["products", "data", "items", "results"];
+  for (const key of possibleKeys) {
+    if (Array.isArray(data[key])) {
+      return data[key];
+    }
+  }
+  
+  // If it's already an array, return it
+  if (Array.isArray(data)) {
+    return data;
+  }
+  
+  // Fallback to empty array
+  return [];
 };
 
 const transformProduct = (product) => ({

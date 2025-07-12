@@ -42,6 +42,7 @@ import FinancialReports from './pages/reports/FinancialReports';
 import SupplierPurchasesReport from './pages/reports/SupplierPurchasesReport';
 import IncomeStatement from './pages/finance/IncomeStatement';
 import CashFlow from './pages/finance/CashFlow';
+import PaymentsPage from './pages/finance/PaymentsPage';
 
 function App() {
   return (
@@ -213,6 +214,10 @@ function App() {
               <Route element={<ProtectedRoute />}>
                 <Route path="/profile" element={<DashboardLayout><Profile /></DashboardLayout>} />
               </Route>
+           {/* Worker Payments */}
+<Route element={<ProtectedRoute requiredPermissions={['finance_view']} />}>
+  <Route path="/finance/payments" element={<DashboardLayout><PaymentsPage /></DashboardLayout>} />
+</Route>
 
               {/* Catch-all route */}
               <Route path="*" element={<NotFound />} />

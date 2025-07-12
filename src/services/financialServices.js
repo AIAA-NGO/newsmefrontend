@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Configure API base URL
-const API_BASE_URL = `${process.env.REACT_APP_API_BASE_URL || 'https://inventorymanagementsystem-latest-37zl.onrender.com/api'}/financial`;
+const API_BASE_URL = `${process.env.REACT_APP_API_BASE_URL || 'https://inventorymanagersystem.netlify.appapi'}/financial`;
 
 // Create axios instance with default configuration
 const api = axios.create({
