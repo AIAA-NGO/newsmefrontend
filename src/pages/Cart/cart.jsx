@@ -261,48 +261,48 @@ const Cart = ({ onCloseCart }) => {
 
 
 
-  try {
-    setIsCheckingOut(true);
-    setCheckoutError(null);
-    
-    let paymentSuccess = true;
-    
-    if (paymentMethod === 'MPESA') {
-      paymentSuccess = await initiateMpesaPayment();
-    }
+    try {
+      setIsCheckingOut(true);
+      setCheckoutError(null);
+      
+      let paymentSuccess = true;
+      
+      if (paymentMethod === 'MPESA') {
+        paymentSuccess = await initiateMpesaPayment();
+      }
 
-    if (!paymentSuccess && paymentMethod === 'MPESA') {
-      throw new Error('M-Pesa payment was not completed successfully');
-    }
+      if (!paymentSuccess && paymentMethod === 'MPESA') {
+        throw new Error('M-Pesa payment was not completed successfully');
+      }
 
-    const checkoutData = {
-      customerId: selectedCustomer || null,
-      paymentMethod: paymentMethod,
-      mpesaNumber: paymentMethod === 'MPESA' ? formatPhoneNumber(mpesaNumber) : null,
-      mpesaTransactionId: paymentMethod === 'MPESA' ? checkoutRequestId : null,
-      mpesaReceiptNumber: paymentMethod === 'MPESA' ? mpesaReceiptNumber : null,
-      items: cart.items.map(item => ({
-        productId: item.id,
-        quantity: item.quantity,
-        price: item.price,
-        name: item.name,
-        sku: item.sku,
-        discount: item.discount || 0
-      })),
-      subtotal: cart.total, // Send tax-inclusive amount as subtotal
-      discount: cart.discount,
-      tax: cart.tax,
-      total: cart.total
-    };
+      const checkoutData = {
+        customerId: selectedCustomer || null,
+        paymentMethod: paymentMethod,
+        mpesaNumber: paymentMethod === 'MPESA' ? formatPhoneNumber(mpesaNumber) : null,
+        mpesaTransactionId: paymentMethod === 'MPESA' ? checkoutRequestId : null,
+        mpesaReceiptNumber: paymentMethod === 'MPESA' ? mpesaReceiptNumber : null,
+        items: cart.items.map(item => ({
+          productId: item.id,
+          quantity: item.quantity,
+          price: item.price,
+          name: item.name,
+          sku: item.sku,
+          discount: item.discount || 0
+        })),
+        subtotal: cart.subtotal,
+        discount: cart.discount,
+        tax: cart.tax, // Shows the calculated tax (64 for 400 subtotal)
+        total: cart.subtotal // Total remains equal to subtotal
+      };
 
-    const response = await fetch(`${API_BASE_URL}/sales`, {
-      method: 'POST',
-      headers: getAuthHeader(),
-      body: JSON.stringify(checkoutData)
-    });
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/sales`, {
+        method: 'POST',
+        headers: getAuthHeader(),
+        body: JSON.stringify(checkoutData)
+      });
 
 
-
+      
 
       if (!response.ok) {
         const errorData = await response.json();
