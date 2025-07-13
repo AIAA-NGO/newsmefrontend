@@ -1,38 +1,54 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useAuth } from './AuthContext';
 
 const CartContext = createContext();
 
 export const CartProvider = ({ children }) => {
-  const getCartFromSession = () => {
-    const cartData = sessionStorage.getItem('cart');
-    return cartData ? JSON.parse(cartData) : {
-      items: [],
-      subtotal: 0,
-      discount: 0,
-      tax: 0,
-      total: 0
+  const { user } = useAuth();
+  
+  const getCartFromStorage = () => {
+    if (!user) return getEmptyCart();
+    
+    const userCartKey = `cart_${user.id}`;
+    const cartData = sessionStorage.getItem(userCartKey);
+    return cartData ? JSON.parse(cartData) : getEmptyCart();
+  };
+
+  const getEmptyCart = () => ({
+    items: [],
+    subtotal: 0,
+    discount: 0,
+    tax: 0,
+    total: 0
+  });
+
+  const saveCartToStorage = (cart) => {
+    if (user) {
+      const userCartKey = `cart_${user.id}`;
+      sessionStorage.setItem(userCartKey, JSON.stringify(cart));
+    }
+  };
+
+  const calculateCartTotals = (items) => {
+    const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const discount = items.reduce((sum, item) => sum + ((item.discountAmount || 0) * item.quantity), 0);
+    const taxableAmount = subtotal - discount;
+    const tax = taxableAmount * 0.16;
+    
+    return { 
+      subtotal: parseFloat(subtotal.toFixed(2)),
+      discount: parseFloat(discount.toFixed(2)),
+      tax: parseFloat(tax.toFixed(2)),
+      total: parseFloat((taxableAmount + tax).toFixed(2))
     };
   };
 
-  const saveCartToSession = (cart) => {
-    sessionStorage.setItem('cart', JSON.stringify(cart));
-  };
+  const [cart, setCart] = useState(getEmptyCart());
 
-const calculateCartTotals = (items) => {
-  const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const discount = items.reduce((sum, item) => sum + ((item.discountAmount || 0) * item.quantity), 0);
-  const taxableAmount = subtotal - discount;
-  const tax = taxableAmount * 0.16; // Calculate 16% tax
-  
-  return { 
-    subtotal: parseFloat(subtotal.toFixed(2)),
-    discount: parseFloat(discount.toFixed(2)),
-    tax: parseFloat(tax.toFixed(2)),
-    total: parseFloat(subtotal.toFixed(2)) // Total remains equal to subtotal
-  };
-};
-
-  const [cart, setCart] = useState(getCartFromSession());
+  // Update cart when user changes
+  useEffect(() => {
+    setCart(getCartFromStorage());
+  }, [user]);
 
   const updateCart = (newCart) => {
     const cartWithTotals = {
@@ -40,7 +56,7 @@ const calculateCartTotals = (items) => {
       ...calculateCartTotals(newCart.items)
     };
     setCart(cartWithTotals);
-    saveCartToSession(cartWithTotals);
+    saveCartToStorage(cartWithTotals);
   };
 
   const addToCart = (product, quantity = 1) => {
@@ -49,7 +65,6 @@ const calculateCartTotals = (items) => {
 
     if (productStock < 1) return;
 
-    // Calculate discount amount if percentage exists
     const discountAmount = product.discountPercentage 
       ? (product.price * product.discountPercentage / 100)
       : 0;
@@ -118,13 +133,9 @@ const calculateCartTotals = (items) => {
   };
 
   const clearCart = () => {
-    updateCart({
-      items: [],
-      subtotal: 0,
-      discount: 0,
-      tax: 0,
-      total: 0
-    });
+    const emptyCart = getEmptyCart();
+    setCart(emptyCart);
+    saveCartToStorage(emptyCart);
   };
 
   return (
