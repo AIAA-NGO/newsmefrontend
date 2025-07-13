@@ -528,26 +528,25 @@ const Cart = ({ onCloseCart }) => {
               </div>
             )}
           </div>
-
-          <div className="bg-gray-50 rounded-lg p-3 mb-3">
-            <h3 className="font-bold mb-2">Cart Summary</h3>
-            <div className="flex justify-between mb-1">
-              <span>Subtotal (tax exclusive):</span>
-              <span>Ksh {cart.subtotal?.toFixed(2) || '0.00'}</span>
+            <div className="bg-gray-50 rounded-lg p-3 mb-3">
+              <h3 className="font-bold mb-2">Cart Summary</h3>
+              <div className="flex justify-between mb-1">
+                <span>Subtotal (tax exclusive):</span>
+                <span>Ksh {cart.subtotal?.toFixed(2) || '0.00'}</span> {/* 168.00 */}
+              </div>
+              <div className="flex justify-between mb-1">
+                <span>Discount:</span>
+                <span>Ksh {cart.discount?.toFixed(2) || '0.00'}</span> {/* 0.00 */}
+              </div>
+              <div className="flex justify-between mb-1">
+                <span>Tax (16%):</span>
+                <span>Ksh {cart.tax?.toFixed(2) || '0.00'}</span> {/* 32.00 */}
+              </div>
+              <div className="flex justify-between font-bold text-lg mt-2 pt-2 border-t border-gray-200">
+                <span>Total:</span>
+                <span>Ksh {cart.total?.toFixed(2) || '0.00'}</span> {/* 200.00 */}
+              </div>
             </div>
-            <div className="flex justify-between mb-1">
-              <span>Discount:</span>
-              <span>Ksh {cart.discount?.toFixed(2) || '0.00'}</span>
-            </div>
-            <div className="flex justify-between mb-1">
-              <span>Tax (16%):</span>
-              <span>Ksh {cart.tax?.toFixed(2) || '0.00'}</span>
-            </div>
-            <div className="flex justify-between font-bold text-lg mt-2 pt-2 border-t border-gray-200">
-              <span>Total:</span>
-              <span>Ksh {cart.total?.toFixed(2) || '0.00'}</span>
-            </div>
-          </div>
 
           {/* Checkout Button */}
           <button
