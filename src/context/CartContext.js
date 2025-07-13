@@ -28,29 +28,25 @@ export const CartProvider = ({ children }) => {
       sessionStorage.setItem(userCartKey, JSON.stringify(cart));
     }
   };
-
 const calculateCartTotals = (items) => {
-  // Calculate subtotal (tax-exclusive)
-  const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  // Tax-inclusive subtotal (what customers see as prices)
+  const taxInclusiveSubtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   
   // Calculate discount
   const discount = items.reduce((sum, item) => sum + ((item.discountAmount || 0) * item.quantity), 0);
   
-  // Calculate taxable amount (subtotal - discount)
-  const taxableAmount = subtotal - discount;
+  // Calculate tax-exclusive amount (reverse calculate from tax-inclusive)
+  const taxExclusiveAmount = taxInclusiveSubtotal / 1.16;
   
-  // Calculate tax (16% of taxable amount)
-  const tax = taxableAmount * 0.16;
-  
-  // Calculate total (taxable amount + tax)
-  const total = taxableAmount + tax;
+  // Calculate tax (16% of tax-exclusive amount)
+  const tax = taxExclusiveAmount * 0.16;
   
   return { 
-    preTaxAmount: parseFloat(subtotal.toFixed(2)), // Same as subtotal in this case
-    subtotal: parseFloat(taxableAmount.toFixed(2)), // Shows as "Subtotal (tax exclusive)"
+    preTaxAmount: parseFloat(taxExclusiveAmount.toFixed(2)),
+    subtotal: parseFloat(taxExclusiveAmount.toFixed(2)), // Shows as "Subtotal (tax exclusive)"
     discount: parseFloat(discount.toFixed(2)),
     tax: parseFloat(tax.toFixed(2)),
-    total: parseFloat(total.toFixed(2))
+    total: parseFloat(taxInclusiveSubtotal.toFixed(2))   // Original tax-inclusive total
   };
 };
 
