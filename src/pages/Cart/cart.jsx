@@ -533,7 +533,7 @@ const Cart = ({ onCloseCart }) => {
             <h3 className="font-bold mb-2">Cart Summary</h3>
             <div className="flex justify-between mb-1">
               <span>Subtotal (tax exclusive):</span>
-              <span>Ksh {cart.preTaxAmount?.toFixed(2) || '0.00'}</span>
+              <span>Ksh {cart.subtotal?.toFixed(2) || '0.00'}</span>
             </div>
             <div className="flex justify-between mb-1">
               <span>Discount:</span>
