@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Eye, Pencil, Trash2, Download, Printer, Save, X } from 'lucide-react';
+import { Eye, Pencil, Trash2, Download, Printer, Save, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { 
   getAllProducts, 
   deleteProduct,
@@ -50,6 +50,9 @@ const ProductPage = () => {
     imageFile: null
   });
   const [formErrors, setFormErrors] = useState({});
+  const [currentPage, setCurrentPage] = useState(0);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -61,7 +64,7 @@ const ProductPage = () => {
         setIsLoading(true);
         
         const [productsData, categoriesData, brandsData, unitsData, suppliersData] = await Promise.all([
-          getAllProducts(),
+          getAllProducts(currentPage, itemsPerPage),
           getCategories(),
           getBrands(),
           getUnits(),
@@ -70,19 +73,26 @@ const ProductPage = () => {
 
         if (isMounted) {
           setRelationships({
-            categories: categoriesData,
-            brands: brandsData,
-            units: unitsData,
-            suppliers: suppliersData
+            categories: Array.isArray(categoriesData) ? categoriesData : [],
+            brands: Array.isArray(brandsData) ? brandsData : [],
+            units: Array.isArray(unitsData) ? unitsData : [],
+            suppliers: Array.isArray(suppliersData) ? suppliersData : []
           });
 
-          const processedProducts = productsData.map((product) => {
+          const productList = Array.isArray(productsData.content) ? productsData.content : (Array.isArray(productsData) ? productsData : []);
+          setTotalItems(productsData.totalElements || productList.length || 0);
+
+          const processedProducts = productList.map((product) => {
             let imageUrl = null;
             if (product.imageData) {
-              const blob = new Blob([new Uint8Array(product.imageData)], { 
-                type: product.imageContentType || 'image/jpeg' 
-              });
-              imageUrl = URL.createObjectURL(blob);
+              try {
+                const blob = new Blob([new Uint8Array(product.imageData)], { 
+                  type: product.imageContentType || 'image/jpeg' 
+                });
+                imageUrl = URL.createObjectURL(blob);
+              } catch (e) {
+                console.error('Error creating image URL:', e);
+              }
             }
             
             return {
@@ -91,10 +101,10 @@ const ProductPage = () => {
               name: product.name || 'Unnamed Product',
               sku: product.sku || 'N/A',
               barcode: product.barcode || 'N/A',
-              price: product.price || 0,
-              costPrice: product.costPrice || product.cost_price || 0,
-              quantityInStock: product.quantityInStock || product.quantity_in_stock || 0,
-              lowStockThreshold: product.lowStockThreshold || product.low_stock_threshold || 0,
+              price: Number(product.price) || 0,
+              costPrice: Number(product.costPrice || product.cost_price) || 0,
+              quantityInStock: Number(product.quantityInStock || product.quantity_in_stock) || 0,
+              lowStockThreshold: Number(product.lowStockThreshold || product.low_stock_threshold) || 0,
               expiryDate: product.expiryDate || product.expiry_date || null,
               description: product.description || '',
               imageUrl,
@@ -102,10 +112,10 @@ const ProductPage = () => {
               brandId: product.brandId || product.brand_id || '',
               unitId: product.unitId || product.unit_id || '',
               supplierId: product.supplierId || product.supplier_id || '',
-              categoryName: categoriesData.find(c => c.id === (product.categoryId || product.category_id))?.name || 'N/A',
-              brandName: brandsData.find(b => b.id === (product.brandId || product.brand_id))?.name || 'N/A',
-              unitName: unitsData.find(u => u.id === (product.unitId || product.unit_id))?.name || 'N/A',
-              supplierName: suppliersData.find(s => s.id === (product.supplierId || product.supplier_id))?.companyName || 'N/A'
+              categoryName: (Array.isArray(categoriesData) && categoriesData.find(c => c.id === (product.categoryId || product.category_id))?.name) || 'N/A',
+              brandName: (Array.isArray(brandsData) && brandsData.find(b => b.id === (product.brandId || product.brand_id))?.name) || 'N/A',
+              unitName: (Array.isArray(unitsData) && unitsData.find(u => u.id === (product.unitId || product.unit_id))?.name) || 'N/A',
+              supplierName: (Array.isArray(suppliersData) && suppliersData.find(s => s.id === (product.supplierId || product.supplier_id))?.companyName) || 'N/A'
             };
           });
 
@@ -153,19 +163,23 @@ const ProductPage = () => {
       isMounted = false;
       products.forEach(product => {
         if (product.imageUrl) {
-          URL.revokeObjectURL(product.imageUrl);
+          try {
+            URL.revokeObjectURL(product.imageUrl);
+          } catch (e) {
+            console.error('Error revoking image URL:', e);
+          }
         }
       });
     };
-  }, [navigate, location]);
+  }, [navigate, location, currentPage, itemsPerPage]);
 
   const handleSearch = (e) => {
-    const term = e.target.value.toLowerCase();
+    const term = e.target.value.toLowerCase().trim();
     setSearchTerm(term);
 
     if (term.length > 0) {
       const filtered = products.filter(product =>
-        product.name.toLowerCase().includes(term) ||
+        (product.name && product.name.toLowerCase().includes(term)) ||
         (product.sku && product.sku.toLowerCase().includes(term)) ||
         (product.barcode && product.barcode.toLowerCase().includes(term))
       );
@@ -181,6 +195,7 @@ const ProductPage = () => {
         await deleteProduct(id);
         setProducts(prev => prev.filter(p => p.id !== id));
         setFilteredProducts(prev => prev.filter(p => p.id !== id));
+        setTotalItems(prev => Math.max(0, prev - 1));
         toast.success('Product deleted successfully', {
           position: "top-right",
           autoClose: 3000,
@@ -207,14 +222,14 @@ const ProductPage = () => {
     setSelectedProduct(product);
     setViewMode('edit');
     setEditFormData({
-      name: product.name,
-      sku: product.sku,
-      barcode: product.barcode,
-      description: product.description,
-      price: product.price,
-      costPrice: product.costPrice,
-      quantityInStock: product.quantityInStock,
-      lowStockThreshold: product.lowStockThreshold,
+      name: product.name || '',
+      sku: product.sku || '',
+      barcode: product.barcode || '',
+      description: product.description || '',
+      price: Number(product.price) || 0,
+      costPrice: Number(product.costPrice) || 0,
+      quantityInStock: Number(product.quantityInStock) || 0,
+      lowStockThreshold: Number(product.lowStockThreshold) || 0,
       expiryDate: product.expiryDate ? product.expiryDate.split('T')[0] : '',
       categoryId: product.categoryId || '',
       brandId: product.brandId || '',
@@ -227,19 +242,13 @@ const ProductPage = () => {
 
   const handleEditFormChange = (e) => {
     const { name, value, files } = e.target;
-    if (name === 'imageFile') {
-      setEditFormData({
-        ...editFormData,
-        [name]: files[0]
-      });
-    } else {
-      setEditFormData({
-        ...editFormData,
-        [name]: value
-      });
-    }
+    setEditFormData(prev => ({
+      ...prev,
+      [name]: name === 'imageFile' ? files[0] : 
+              ['price', 'costPrice', 'quantityInStock', 'lowStockThreshold'].includes(name) ? 
+              Number(value) || 0 : value
+    }));
 
-    // Clear error when field is changed
     if (formErrors[name]) {
       setFormErrors(prev => {
         const newErrors = { ...prev };
@@ -253,8 +262,10 @@ const ProductPage = () => {
     const errors = {};
     if (!editFormData.name.trim()) errors.name = 'Name is required';
     if (!editFormData.sku.trim()) errors.sku = 'SKU is required';
-    if (!editFormData.price || isNaN(editFormData.price) || editFormData.price <= 0) errors.price = 'Valid price is required';
-    if (!editFormData.quantityInStock || isNaN(editFormData.quantityInStock) || editFormData.quantityInStock < 0) errors.quantityInStock = 'Valid quantity is required';
+    if (isNaN(editFormData.price) || editFormData.price <= 0) errors.price = 'Valid price is required';
+    if (isNaN(editFormData.quantityInStock) || editFormData.quantityInStock < 0) errors.quantityInStock = 'Valid quantity is required';
+    if (isNaN(editFormData.costPrice) || editFormData.costPrice < 0) errors.costPrice = 'Valid cost price is required';
+    if (isNaN(editFormData.lowStockThreshold) || editFormData.lowStockThreshold < 0) errors.lowStockThreshold = 'Valid threshold is required';
     if (!editFormData.categoryId) errors.categoryId = 'Category is required';
     if (!editFormData.supplierId) errors.supplierId = 'Supplier is required';
 
@@ -262,55 +273,60 @@ const ProductPage = () => {
     return Object.keys(errors).length === 0;
   };
 
-const handleUpdateProduct = async (e) => {
-  e.preventDefault();
-  
-  if (!validateForm()) {
-    const firstError = Object.values(formErrors)[0];
-    if (firstError) {
-      toast.error(firstError);
+  const handleUpdateProduct = async (e) => {
+    e.preventDefault();
+    
+    if (!validateForm()) {
+      const firstError = Object.values(formErrors)[0];
+      if (firstError) {
+        toast.error(firstError);
+      }
+      return;
     }
-    return;
-  }
 
-  try {
-    setIsLoading(true);
-    
-    await updateProduct(selectedProduct.id, editFormData, editFormData.imageFile);
-    
-    // Update the products list with the new data
-    const updatedProducts = products.map(p => 
-      p.id === selectedProduct.id ? { 
-        ...p, 
-        ...editFormData,
-        imageUrl: editFormData.imageFile ? URL.createObjectURL(editFormData.imageFile) : p.imageUrl
-      } : p
-    );
-    
-    setProducts(updatedProducts);
-    setFilteredProducts(updatedProducts);
-    
-    toast.success('Product updated successfully');
-    setViewMode(null);
-  } catch (error) {
-    console.error('Update error:', error);
-    toast.error(error.response?.data?.message || 'Failed to update product. Please try again.');
-  } finally {
-    setIsLoading(false);
-  }
-};
+    try {
+      setIsLoading(true);
+      
+      const updatedProduct = await updateProduct(selectedProduct.id, editFormData, editFormData.imageFile);
+      
+      const newImageUrl = editFormData.imageFile ? URL.createObjectURL(editFormData.imageFile) : selectedProduct.imageUrl;
+      
+      const updatedProducts = products.map(p => 
+        p.id === selectedProduct.id ? { 
+          ...p, 
+          ...editFormData,
+          imageUrl: newImageUrl,
+          categoryName: relationships.categories.find(c => c.id === editFormData.categoryId)?.name || 'N/A',
+          brandName: relationships.brands.find(b => b.id === editFormData.brandId)?.name || 'N/A',
+          unitName: relationships.units.find(u => u.id === editFormData.unitId)?.name || 'N/A',
+          supplierName: relationships.suppliers.find(s => s.id === editFormData.supplierId)?.companyName || 'N/A'
+        } : p
+      );
+      
+      setProducts(updatedProducts);
+      setFilteredProducts(updatedProducts);
+      
+      toast.success('Product updated successfully');
+      setViewMode(null);
+    } catch (error) {
+      console.error('Update error:', error);
+      toast.error(error.response?.data?.message || 'Failed to update product. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const exportToCSV = () => {
     const headers = ['SKU', 'Name', 'Category', 'Brand', 'Price', 'Stock'];
     const csvContent = [
       headers.join(','),
       ...filteredProducts.map(product => [
-        `"${product.sku.replace(/"/g, '""')}"`,
-        `"${product.name.replace(/"/g, '""')}"`,
-        `"${product.categoryName.replace(/"/g, '""')}"`,
-        `"${product.brandName.replace(/"/g, '""')}"`,
-        product.price,
-        product.quantityInStock
+        `"${(product.sku || '').replace(/"/g, '""')}"`,
+        `"${(product.name || '').replace(/"/g, '""')}"`,
+        `"${(product.categoryName || '').replace(/"/g, '""')}"`,
+        `"${(product.brandName || '').replace(/"/g, '""')}"`,
+        Number(product.price) || 0,
+        Number(product.quantityInStock) || 0
       ].join(','))
     ].join('\n');
 
@@ -318,10 +334,11 @@ const handleUpdateProduct = async (e) => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', 'products_export.csv');
+    link.setAttribute('download', `products_export_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
     
     toast.success('CSV export started successfully', {
       position: "top-right",
@@ -338,7 +355,7 @@ const handleUpdateProduct = async (e) => {
     printWindow.document.write(`
       <html>
         <head>
-          <title>Product List</title>
+          <title>Product Inventory Report</title>
           <style>
             body { font-family: Arial, sans-serif; margin: 20px; }
             h1 { color: #333; text-align: center; }
@@ -369,14 +386,14 @@ const handleUpdateProduct = async (e) => {
             </thead>
             <tbody>
               ${filteredProducts.map(product => `
-                <tr class="${product.quantityInStock <= product.lowStockThreshold * 0.5 ? 'very-low-stock' : 
-                  product.quantityInStock <= product.lowStockThreshold ? 'low-stock' : ''}">
-                  <td>${product.sku}</td>
-                  <td>${product.name}</td>
-                  <td>${product.categoryName}</td>
-                  <td>${product.brandName}</td>
-                  <td>${formatCurrency(product.price)}</td>
-                  <td>${product.quantityInStock} ${product.unitName ? `(${product.unitName})` : ''}</td>
+                <tr class="${Number(product.quantityInStock) <= Number(product.lowStockThreshold) * 0.5 ? 'very-low-stock' : 
+                  Number(product.quantityInStock) <= Number(product.lowStockThreshold) ? 'low-stock' : ''}">
+                  <td>${product.sku || 'N/A'}</td>
+                  <td>${product.name || 'N/A'}</td>
+                  <td>${product.categoryName || 'N/A'}</td>
+                  <td>${product.brandName || 'N/A'}</td>
+                  <td>${formatCurrency(Number(product.price))}</td>
+                  <td>${Number(product.quantityInStock)} ${product.unitName ? `(${product.unitName})` : ''}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -385,7 +402,7 @@ const handleUpdateProduct = async (e) => {
             window.onload = function() {
               setTimeout(function() {
                 window.print();
-                window.close();
+                setTimeout(window.close, 500);
               }, 200);
             }
           </script>
@@ -394,6 +411,14 @@ const handleUpdateProduct = async (e) => {
     `);
     printWindow.document.close();
   };
+
+  // Calculate pagination range
+  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+  const startPage = Math.max(0, Math.min(
+    totalPages - 5,
+    currentPage - Math.floor(5 / 2)
+  ));
+  const endPage = Math.min(totalPages, startPage + 5);
 
   return (
     <div className="p-2 sm:p-4 md:p-6 min-h-screen bg-gray-50">
@@ -477,7 +502,7 @@ const handleUpdateProduct = async (e) => {
                             {product.imageUrl ? (
                               <img 
                                 src={product.imageUrl} 
-                                alt={product.name} 
+                                alt={product.name || 'Product'} 
                                 className="h-full w-full object-cover"
                                 onError={(e) => {
                                   e.target.src = '';
@@ -494,35 +519,35 @@ const handleUpdateProduct = async (e) => {
                           </div>
                         </td>
                         <td className="px-2 py-2 sm:px-3 sm:py-3 whitespace-nowrap text-gray-900 font-medium">
-                          <div className="text-xs sm:text-sm">{product.sku}</div>
+                          <div className="text-xs sm:text-sm">{product.sku || 'N/A'}</div>
                         </td>
                         <td className="px-2 py-2 sm:px-3 sm:py-3 whitespace-nowrap">
-                          <div className="text-xs sm:text-sm font-medium text-gray-900">{product.name}</div>
+                          <div className="text-xs sm:text-sm font-medium text-gray-900">{product.name || 'N/A'}</div>
                           {product.barcode && (
                             <div className="text-xs text-gray-500">Barcode: {product.barcode}</div>
                           )}
                         </td>
                         <td className="px-2 py-2 sm:px-3 sm:py-3 whitespace-nowrap text-gray-500 hidden sm:table-cell">
-                          <div className="text-xs sm:text-sm">{product.categoryName}</div>
+                          <div className="text-xs sm:text-sm">{product.categoryName || 'N/A'}</div>
                         </td>
                         <td className="px-2 py-2 sm:px-3 sm:py-3 whitespace-nowrap text-gray-500 hidden md:table-cell">
-                          <div className="text-xs sm:text-sm">{product.brandName}</div>
+                          <div className="text-xs sm:text-sm">{product.brandName || 'N/A'}</div>
                         </td>
                         <td className="px-2 py-2 sm:px-3 sm:py-3 whitespace-nowrap font-medium text-gray-900">
-                          <div className="text-xs sm:text-sm">{formatCurrency(product.price)}</div>
+                          <div className="text-xs sm:text-sm">{formatCurrency(Number(product.price))}</div>
                         </td>
                         <td className="px-2 py-2 sm:px-3 sm:py-3 whitespace-nowrap">
                           <span className={`inline-flex px-1 py-0.5 sm:px-2 sm:py-1 rounded-full text-xs font-semibold leading-4 ${
-                            product.quantityInStock <= product.lowStockThreshold * 0.5 
+                            Number(product.quantityInStock) <= Number(product.lowStockThreshold) * 0.5 
                               ? 'bg-red-100 text-red-800' 
-                              : product.quantityInStock <= product.lowStockThreshold 
+                              : Number(product.quantityInStock) <= Number(product.lowStockThreshold) 
                                 ? 'bg-yellow-100 text-yellow-800' 
                                 : 'bg-green-100 text-green-800'
                           }`}>
-                            {product.quantityInStock} {product.unitName && `(${product.unitName})`}
+                            {Number(product.quantityInStock)} {product.unitName && `(${product.unitName})`}
                           </span>
-                          {product.lowStockThreshold > 0 && (
-                            <div className="text-xs text-gray-500 mt-0.5">Threshold: {product.lowStockThreshold}</div>
+                          {Number(product.lowStockThreshold) > 0 && (
+                            <div className="text-xs text-gray-500 mt-0.5">Threshold: {Number(product.lowStockThreshold)}</div>
                           )}
                         </td>
                         <td className="px-2 py-2 sm:px-3 sm:py-3 whitespace-nowrap font-medium">
@@ -567,6 +592,74 @@ const handleUpdateProduct = async (e) => {
             </div>
           )}
         </div>
+
+        {/* Pagination Controls */}
+        <div className="flex flex-col sm:flex-row items-center justify-between mt-4 gap-2">
+          <div className="text-sm text-gray-600">
+            Showing {Math.min(currentPage * itemsPerPage + 1, totalItems)} to {Math.min((currentPage + 1) * itemsPerPage, totalItems)} of {totalItems} results
+          </div>
+          
+          <div className="flex items-center gap-1">
+            <select
+              value={itemsPerPage}
+              onChange={(e) => {
+                setItemsPerPage(Number(e.target.value));
+                setCurrentPage(0);
+              }}
+              className="border rounded-md px-2 py-1 text-sm"
+            >
+              {[10, 20, 50, 100].map(size => (
+                <option key={size} value={size}>{size} per page</option>
+              ))}
+            </select>
+
+            <button
+              onClick={() => setCurrentPage(0)}
+              disabled={currentPage === 0}
+              className="p-1 rounded border disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronsLeft size={16} />
+            </button>
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 0))}
+              disabled={currentPage === 0}
+              className="p-1 rounded border disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            
+            <div className="flex gap-1">
+              {Array.from({ length: endPage - startPage }, (_, i) => {
+                const pageNum = startPage + i;
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setCurrentPage(pageNum)}
+                    className={`w-8 h-8 rounded border text-sm ${currentPage === pageNum ? 'bg-blue-500 text-white' : 'hover:bg-gray-100'}`}
+                    disabled={currentPage === pageNum}
+                  >
+                    {pageNum + 1}
+                  </button>
+                );
+              })}
+            </div>
+            
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages - 1))}
+              disabled={currentPage >= totalPages - 1}
+              className="p-1 rounded border disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronRight size={16} />
+            </button>
+            <button
+              onClick={() => setCurrentPage(totalPages - 1)}
+              disabled={currentPage >= totalPages - 1}
+              className="p-1 rounded border disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronsRight size={16} />
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* View Modal */}
@@ -590,7 +683,7 @@ const handleUpdateProduct = async (e) => {
                     {selectedProduct.imageUrl ? (
                       <img 
                         src={selectedProduct.imageUrl} 
-                        alt={selectedProduct.name} 
+                        alt={selectedProduct.name || 'Product'} 
                         className="h-full w-full object-contain"
                       />
                     ) : (
@@ -606,8 +699,8 @@ const handleUpdateProduct = async (e) => {
                 <div>
                   <h3 className="text-sm sm:text-base font-medium text-gray-900 mb-1 sm:mb-2">Basic Information</h3>
                   <div className="space-y-1 text-xs sm:text-sm">
-                    <p><span className="font-medium">Name:</span> {selectedProduct.name}</p>
-                    <p><span className="font-medium">SKU:</span> {selectedProduct.sku}</p>
+                    <p><span className="font-medium">Name:</span> {selectedProduct.name || 'N/A'}</p>
+                    <p><span className="font-medium">SKU:</span> {selectedProduct.sku || 'N/A'}</p>
                     <p><span className="font-medium">Barcode:</span> {selectedProduct.barcode || 'N/A'}</p>
                     <p><span className="font-medium">Description:</span> {selectedProduct.description || 'N/A'}</p>
                   </div>
@@ -616,10 +709,10 @@ const handleUpdateProduct = async (e) => {
                 <div>
                   <h3 className="text-sm sm:text-base font-medium text-gray-900 mb-1 sm:mb-2">Pricing & Inventory</h3>
                   <div className="space-y-1 text-xs sm:text-sm">
-                    <p><span className="font-medium">Price:</span> {formatCurrency(selectedProduct.price)}</p>
-                    <p><span className="font-medium">Cost Price:</span> {formatCurrency(selectedProduct.costPrice)}</p>
-                    <p><span className="font-medium">In Stock:</span> {selectedProduct.quantityInStock} {selectedProduct.unitName && `(${selectedProduct.unitName})`}</p>
-                    <p><span className="font-medium">Low Stock Threshold:</span> {selectedProduct.lowStockThreshold}</p>
+                    <p><span className="font-medium">Price:</span> {formatCurrency(Number(selectedProduct.price))}</p>
+                    <p><span className="font-medium">Cost Price:</span> {formatCurrency(Number(selectedProduct.costPrice))}</p>
+                    <p><span className="font-medium">In Stock:</span> {Number(selectedProduct.quantityInStock)} {selectedProduct.unitName && `(${selectedProduct.unitName})`}</p>
+                    <p><span className="font-medium">Low Stock Threshold:</span> {Number(selectedProduct.lowStockThreshold)}</p>
                     {selectedProduct.expiryDate && (
                       <p><span className="font-medium">Expiry Date:</span> {new Date(selectedProduct.expiryDate).toLocaleDateString()}</p>
                     )}
@@ -629,10 +722,10 @@ const handleUpdateProduct = async (e) => {
                 <div>
                   <h3 className="text-sm sm:text-base font-medium text-gray-900 mb-1 sm:mb-2">Relationships</h3>
                   <div className="space-y-1 text-xs sm:text-sm">
-                    <p><span className="font-medium">Category:</span> {selectedProduct.categoryName}</p>
-                    <p><span className="font-medium">Brand:</span> {selectedProduct.brandName}</p>
-                    <p><span className="font-medium">Unit:</span> {selectedProduct.unitName}</p>
-                    <p><span className="font-medium">Supplier:</span> {selectedProduct.supplierName}</p>
+                    <p><span className="font-medium">Category:</span> {selectedProduct.categoryName || 'N/A'}</p>
+                    <p><span className="font-medium">Brand:</span> {selectedProduct.brandName || 'N/A'}</p>
+                    <p><span className="font-medium">Unit:</span> {selectedProduct.unitName || 'N/A'}</p>
+                    <p><span className="font-medium">Supplier:</span> {selectedProduct.supplierName || 'N/A'}</p>
                   </div>
                 </div>
               </div>
@@ -740,10 +833,13 @@ const handleUpdateProduct = async (e) => {
                       name="costPrice"
                       value={editFormData.costPrice}
                       onChange={handleEditFormChange}
-                      className="w-full border border-gray-300 px-2 py-1.5 sm:px-3 sm:py-2 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none transition text-xs sm:text-sm"
+                      className={`w-full border ${formErrors.costPrice ? 'border-red-500' : 'border-gray-300'} px-2 py-1.5 sm:px-3 sm:py-2 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none transition text-xs sm:text-sm`}
                       step="0.01"
                       min="0"
                     />
+                    {formErrors.costPrice && (
+                      <p className="mt-1 text-xs text-red-500">{formErrors.costPrice}</p>
+                    )}
                   </div>
 
                   <div className="col-span-1">
@@ -755,6 +851,7 @@ const handleUpdateProduct = async (e) => {
                       onChange={handleEditFormChange}
                       className={`w-full border ${formErrors.quantityInStock ? 'border-red-500' : 'border-gray-300'} px-2 py-1.5 sm:px-3 sm:py-2 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none transition text-xs sm:text-sm`}
                       min="0"
+                      step="1"
                       required
                     />
                     {formErrors.quantityInStock && (
@@ -769,9 +866,13 @@ const handleUpdateProduct = async (e) => {
                       name="lowStockThreshold"
                       value={editFormData.lowStockThreshold}
                       onChange={handleEditFormChange}
-                      className="w-full border border-gray-300 px-2 py-1.5 sm:px-3 sm:py-2 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none transition text-xs sm:text-sm"
+                      className={`w-full border ${formErrors.lowStockThreshold ? 'border-red-500' : 'border-gray-300'} px-2 py-1.5 sm:px-3 sm:py-2 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none transition text-xs sm:text-sm`}
                       min="0"
+                      step="1"
                     />
+                    {formErrors.lowStockThreshold && (
+                      <p className="mt-1 text-xs text-red-500">{formErrors.lowStockThreshold}</p>
+                    )}
                   </div>
 
                   <div className="col-span-1">
@@ -797,7 +898,7 @@ const handleUpdateProduct = async (e) => {
                       <option value="">Select Category</option>
                       {relationships.categories.map(category => (
                         <option key={category.id} value={category.id}>
-                          {category.name}
+                          {category.name || 'N/A'}
                         </option>
                       ))}
                     </select>
@@ -817,7 +918,7 @@ const handleUpdateProduct = async (e) => {
                       <option value="">Select Brand</option>
                       {relationships.brands.map(brand => (
                         <option key={brand.id} value={brand.id}>
-                          {brand.name}
+                          {brand.name || 'N/A'}
                         </option>
                       ))}
                     </select>
@@ -834,15 +935,11 @@ const handleUpdateProduct = async (e) => {
                       <option value="">Select Unit</option>
                       {relationships.units.map(unit => (
                         <option key={unit.id} value={unit.id}>
-                          {unit.name}
+                          {unit.name || 'N/A'}
                         </option>
                       ))}
                     </select>
                   </div>
-
-
-
-
 
                   <div className="col-span-1">
                     <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Supplier *</label>
@@ -858,9 +955,9 @@ const handleUpdateProduct = async (e) => {
                         <option 
                           key={supplier.id} 
                           value={supplier.id}
-                          className="text-gray-900" // Ensure text color is visible
+                          className="text-gray-900"
                         >
-                          {supplier.companyName || supplier.name}
+                          {supplier.companyName || supplier.name || 'N/A'}
                         </option>
                       ))}
                     </select>
@@ -868,8 +965,6 @@ const handleUpdateProduct = async (e) => {
                       <p className="mt-1 text-xs text-red-500">{formErrors.supplierId}</p>
                     )}
                   </div>
-
-
 
                   <div className="col-span-2">
                     <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Description</label>

@@ -16,7 +16,7 @@ api.interceptors.response.use(
   response => response,
   error => {
     if (error.response?.status === 500) {
-      console.error("Server error:", error.response.data);
+      console.error("Server error:", error.response.data)
       return Promise.reject(new Error("Server error occurred. Please try again later."));
     }
     return Promise.reject(error);
@@ -70,11 +70,11 @@ const transformProduct = (product) => ({
   expiryDate: product.expiryDate || product.expiry_date || null
 });
 
-// Product Services
+// Update the getAllProducts function
 export const getAllProducts = async (page = 0, size = 10) => {
   try {
     const response = await api.get(`/products?page=${page}&size=${size}`);
-    return response.data.content.map(transformProduct);
+    return response.data; // Return the full response including pagination data
   } catch (error) {
     console.error("Error fetching products:", error);
     throw error;
