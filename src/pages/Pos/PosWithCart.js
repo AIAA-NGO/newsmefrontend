@@ -1,3 +1,4 @@
+
 // src/pages/Pos/PosWithCart.js
 import React, { useState } from 'react';
 import { FaShoppingCart } from 'react-icons/fa';
@@ -27,14 +28,14 @@ const PosWithCart = () => {
 
         {/* Main Content */}
         <div className="flex flex-1 p-4 gap-4">
-          {/* Products Section */}
-          <div className={`${showCart ? 'hidden lg:block lg:w-3/5' : 'block w-full lg:w-3/5'}`}>
+          {/* Products Section - Scrollable */}
+          <div className={`${showCart ? 'hidden lg:block lg:w-3/5' : 'block w-full lg:w-3/5'} overflow-y-auto h-[calc(100vh-2rem)]`}>
             <PosPage />
           </div>
           
-          {/* Cart Section */}
+          {/* Cart Section - Fixed */}
           <div className={`${showCart ? 'block w-full lg:w-2/5' : 'hidden lg:block lg:w-2/5'}`}>
-            <div className="sticky top-4 h-[calc(100vh-2rem)] overflow-y-auto">
+            <div className="sticky top-4 h-[calc(100vh-2rem)]">
               <Cart onCloseCart={() => setShowCart(false)} />
             </div>
           </div>
