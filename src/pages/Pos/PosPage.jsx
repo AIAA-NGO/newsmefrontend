@@ -260,7 +260,7 @@ export default function PosPage() {
       setLoading(true);
       setError(null);
       const [prodResponse, catData] = await Promise.all([
-        getAllProducts(0, 1000), // Fetch all products (1000 is a large number to get all)
+        getAllProducts(0, 1000000), // Fetch all products (1000 is a large number to get all)
         getCategories(),
       ]);
       
