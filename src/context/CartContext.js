@@ -18,19 +18,19 @@ export const CartProvider = ({ children }) => {
     sessionStorage.setItem('cart', JSON.stringify(cart));
   };
 
-  const calculateCartTotals = (items) => {
-    const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const discount = items.reduce((sum, item) => sum + ((item.discountAmount || 0) * item.quantity), 0);
-    const taxableAmount = subtotal - discount;
-    const tax = taxableAmount - (taxableAmount / 1.16); // Reverse calculate 16% tax
-    
-    return { 
-      subtotal: parseFloat(subtotal.toFixed(2)),
-      discount: parseFloat(discount.toFixed(2)),
-      tax: parseFloat(tax.toFixed(2)),
-      total: parseFloat(subtotal.toFixed(2)) // Total is same as subtotal (tax inclusive)
-    };
+const calculateCartTotals = (items) => {
+  const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const discount = items.reduce((sum, item) => sum + ((item.discountAmount || 0) * item.quantity), 0);
+  const taxableAmount = subtotal - discount;
+  const tax = taxableAmount * 0.16; // Calculate 16% tax
+  
+  return { 
+    subtotal: parseFloat(subtotal.toFixed(2)),
+    discount: parseFloat(discount.toFixed(2)),
+    tax: parseFloat(tax.toFixed(2)),
+    total: parseFloat(subtotal.toFixed(2)) // Total remains equal to subtotal
   };
+};
 
   const [cart, setCart] = useState(getCartFromSession());
 

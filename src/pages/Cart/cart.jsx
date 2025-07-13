@@ -288,8 +288,8 @@ const Cart = ({ onCloseCart }) => {
         })),
         subtotal: cart.subtotal,
         discount: cart.discount,
-        tax: cart.tax,
-        total: cart.total
+        tax: cart.tax, // Shows the calculated tax (64 for 400 subtotal)
+        total: cart.subtotal // Total remains equal to subtotal
       };
 
       const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/sales`, {
@@ -523,26 +523,25 @@ const Cart = ({ onCloseCart }) => {
             )}
           </div>
 
-          {/* Updated Order Summary Section */}
-          <div className="bg-gray-50 rounded-lg p-3 mb-3">
-            <h3 className="font-bold mb-2">Cart Summary</h3>
-            <div className="flex justify-between mb-1">
-              <span>Subtotal (incl. tax):</span>
-              <span>Ksh {cart.subtotal?.toFixed(2) || '0.00'}</span>
-            </div>
-            <div className="flex justify-between mb-1">
-              <span>Discount:</span>
-              <span>Ksh {cart.discount?.toFixed(2) || '0.00'}</span>
-            </div>
-            <div className="flex justify-between mb-1">
-              <span>Tax (16%):</span>
-              <span>Ksh {cart.tax?.toFixed(2) || '0.00'}</span>
-            </div>
-            <div className="flex justify-between font-bold text-lg mt-2 pt-2 border-t border-gray-200">
-              <span>Total:</span>
-              <span>Ksh {cart.total?.toFixed(2) || '0.00'}</span>
-            </div>
+        <div className="bg-gray-50 rounded-lg p-3 mb-3">
+          <h3 className="font-bold mb-2">Cart Summary</h3>
+          <div className="flex justify-between mb-1">
+            <span>Subtotal (tax inclusive):</span>
+            <span>Ksh {cart.subtotal?.toFixed(2) || '0.00'}</span>
           </div>
+          <div className="flex justify-between mb-1">
+            <span>Discount:</span>
+            <span>Ksh {cart.discount?.toFixed(2) || '0.00'}</span>
+          </div>
+          <div className="flex justify-between mb-1">
+            <span>Tax (16%):</span>
+            <span>Ksh {cart.tax?.toFixed(2) || '0.00'}</span>
+          </div>
+          <div className="flex justify-between font-bold text-lg mt-2 pt-2 border-t border-gray-200">
+            <span>Total:</span>
+            <span>Ksh {cart.total?.toFixed(2) || '0.00'}</span>
+          </div>
+        </div>
 
           {/* Checkout Button */}
           <button
