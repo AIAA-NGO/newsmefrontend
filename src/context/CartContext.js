@@ -5,10 +5,10 @@ const CartContext = createContext();
 
 export const CartProvider = ({ children }) => {
   const { user } = useAuth();
+  const TAX_RATE = 0.16;
   
   const getCartFromStorage = () => {
     if (!user) return getEmptyCart();
-    
     const userCartKey = `cart_${user.id}`;
     const cartData = sessionStorage.getItem(userCartKey);
     return cartData ? JSON.parse(cartData) : getEmptyCart();
@@ -16,10 +16,11 @@ export const CartProvider = ({ children }) => {
 
   const getEmptyCart = () => ({
     items: [],
-    subtotal: 0,
+    subtotal: 0,      // tax-inclusive amount
     discount: 0,
-    tax: 0,
-    total: 0
+    tax: 0,           // calculated tax amount
+    total: 0,         // same as subtotal (tax-inclusive)
+    preTaxAmount: 0   // tax-exclusive amount
   });
 
   const saveCartToStorage = (cart) => {
@@ -30,22 +31,25 @@ export const CartProvider = ({ children }) => {
   };
 
   const calculateCartTotals = (items) => {
+    // Calculate tax-inclusive subtotal
     const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     const discount = items.reduce((sum, item) => sum + ((item.discountAmount || 0) * item.quantity), 0);
-    const taxableAmount = subtotal - discount;
-    const tax = taxableAmount * 0.16;
+    
+    // Calculate tax-exclusive amount
+    const preTaxAmount = subtotal / (1 + TAX_RATE);
+    const tax = subtotal - preTaxAmount;
     
     return { 
       subtotal: parseFloat(subtotal.toFixed(2)),
       discount: parseFloat(discount.toFixed(2)),
       tax: parseFloat(tax.toFixed(2)),
-      total: parseFloat((taxableAmount + tax).toFixed(2))
+      total: parseFloat(subtotal.toFixed(2)), // Total remains same as subtotal
+      preTaxAmount: parseFloat(preTaxAmount.toFixed(2))
     };
   };
 
   const [cart, setCart] = useState(getEmptyCart());
 
-  // Update cart when user changes
   useEffect(() => {
     setCart(getCartFromStorage());
   }, [user]);

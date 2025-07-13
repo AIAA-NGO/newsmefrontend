@@ -258,45 +258,51 @@ const Cart = ({ onCloseCart }) => {
       return;
     }
 
-    try {
-      setIsCheckingOut(true);
-      setCheckoutError(null);
-      
-      let paymentSuccess = true;
-      
-      if (paymentMethod === 'MPESA') {
-        paymentSuccess = await initiateMpesaPayment();
-      }
 
-      if (!paymentSuccess && paymentMethod === 'MPESA') {
-        throw new Error('M-Pesa payment was not completed successfully');
-      }
 
-      const checkoutData = {
-        customerId: selectedCustomer || null,
-        paymentMethod: paymentMethod,
-        mpesaNumber: paymentMethod === 'MPESA' ? formatPhoneNumber(mpesaNumber) : null,
-        mpesaTransactionId: paymentMethod === 'MPESA' ? checkoutRequestId : null,
-        mpesaReceiptNumber: paymentMethod === 'MPESA' ? mpesaReceiptNumber : null,
-        items: cart.items.map(item => ({
-          productId: item.id,
-          quantity: item.quantity,
-          price: item.price,
-          name: item.name,
-          sku: item.sku,
-          discount: item.discount || 0
-        })),
-        subtotal: cart.subtotal,
-        discount: cart.discount,
-        tax: cart.tax, // Shows the calculated tax (64 for 400 subtotal)
-        total: cart.subtotal // Total remains equal to subtotal
-      };
 
-      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/sales`, {
-        method: 'POST',
-        headers: getAuthHeader(),
-        body: JSON.stringify(checkoutData)
-      });
+  try {
+    setIsCheckingOut(true);
+    setCheckoutError(null);
+    
+    let paymentSuccess = true;
+    
+    if (paymentMethod === 'MPESA') {
+      paymentSuccess = await initiateMpesaPayment();
+    }
+
+    if (!paymentSuccess && paymentMethod === 'MPESA') {
+      throw new Error('M-Pesa payment was not completed successfully');
+    }
+
+    const checkoutData = {
+      customerId: selectedCustomer || null,
+      paymentMethod: paymentMethod,
+      mpesaNumber: paymentMethod === 'MPESA' ? formatPhoneNumber(mpesaNumber) : null,
+      mpesaTransactionId: paymentMethod === 'MPESA' ? checkoutRequestId : null,
+      mpesaReceiptNumber: paymentMethod === 'MPESA' ? mpesaReceiptNumber : null,
+      items: cart.items.map(item => ({
+        productId: item.id,
+        quantity: item.quantity,
+        price: item.price,
+        name: item.name,
+        sku: item.sku,
+        discount: item.discount || 0
+      })),
+      subtotal: cart.total, // Send tax-inclusive amount as subtotal
+      discount: cart.discount,
+      tax: cart.tax,
+      total: cart.total
+    };
+
+    const response = await fetch(`${API_BASE_URL}/sales`, {
+      method: 'POST',
+      headers: getAuthHeader(),
+      body: JSON.stringify(checkoutData)
+    });
+
+
+
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -523,25 +529,25 @@ const Cart = ({ onCloseCart }) => {
             )}
           </div>
 
-        <div className="bg-gray-50 rounded-lg p-3 mb-3">
-          <h3 className="font-bold mb-2">Cart Summary</h3>
-          <div className="flex justify-between mb-1">
-            <span>Subtotal (tax inclusive):</span>
-            <span>Ksh {cart.subtotal?.toFixed(2) || '0.00'}</span>
+          <div className="bg-gray-50 rounded-lg p-3 mb-3">
+            <h3 className="font-bold mb-2">Cart Summary</h3>
+            <div className="flex justify-between mb-1">
+              <span>Subtotal (tax exclusive):</span>
+              <span>Ksh {cart.preTaxAmount?.toFixed(2) || '0.00'}</span>
+            </div>
+            <div className="flex justify-between mb-1">
+              <span>Discount:</span>
+              <span>Ksh {cart.discount?.toFixed(2) || '0.00'}</span>
+            </div>
+            <div className="flex justify-between mb-1">
+              <span>Tax (16%):</span>
+              <span>Ksh {cart.tax?.toFixed(2) || '0.00'}</span>
+            </div>
+            <div className="flex justify-between font-bold text-lg mt-2 pt-2 border-t border-gray-200">
+              <span>Total:</span>
+              <span>Ksh {cart.total?.toFixed(2) || '0.00'}</span>
+            </div>
           </div>
-          <div className="flex justify-between mb-1">
-            <span>Discount:</span>
-            <span>Ksh {cart.discount?.toFixed(2) || '0.00'}</span>
-          </div>
-          <div className="flex justify-between mb-1">
-            <span>Tax (16%):</span>
-            <span>Ksh {cart.tax?.toFixed(2) || '0.00'}</span>
-          </div>
-          <div className="flex justify-between font-bold text-lg mt-2 pt-2 border-t border-gray-200">
-            <span>Total:</span>
-            <span>Ksh {cart.total?.toFixed(2) || '0.00'}</span>
-          </div>
-        </div>
 
           {/* Checkout Button */}
           <button
