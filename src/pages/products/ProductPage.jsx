@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Eye, Pencil, Trash2, Download, Printer, Save, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { 
@@ -73,26 +73,21 @@ const ProductPage = () => {
 
         if (isMounted) {
           setRelationships({
-            categories: Array.isArray(categoriesData) ? categoriesData : [],
-            brands: Array.isArray(brandsData) ? brandsData : [],
-            units: Array.isArray(unitsData) ? unitsData : [],
-            suppliers: Array.isArray(suppliersData) ? suppliersData : []
+            categories: categoriesData,
+            brands: brandsData,
+            units: unitsData,
+            suppliers: suppliersData
           });
 
-          const productList = Array.isArray(productsData.content) ? productsData.content : (Array.isArray(productsData) ? productsData : []);
-          setTotalItems(productsData.totalElements || productList.length || 0);
+          setTotalItems(productsData.totalElements || productsData.length || 0);
 
-          const processedProducts = productList.map((product) => {
+          const processedProducts = productsData.content.map((product) => {
             let imageUrl = null;
             if (product.imageData) {
-              try {
-                const blob = new Blob([new Uint8Array(product.imageData)], { 
-                  type: product.imageContentType || 'image/jpeg' 
-                });
-                imageUrl = URL.createObjectURL(blob);
-              } catch (e) {
-                console.error('Error creating image URL:', e);
-              }
+              const blob = new Blob([new Uint8Array(product.imageData)], { 
+                type: product.imageContentType || 'image/jpeg' 
+              });
+              imageUrl = URL.createObjectURL(blob);
             }
             
             return {
@@ -101,10 +96,10 @@ const ProductPage = () => {
               name: product.name || 'Unnamed Product',
               sku: product.sku || 'N/A',
               barcode: product.barcode || 'N/A',
-              price: Number(product.price) || 0,
-              costPrice: Number(product.costPrice || product.cost_price) || 0,
-              quantityInStock: Number(product.quantityInStock || product.quantity_in_stock) || 0,
-              lowStockThreshold: Number(product.lowStockThreshold || product.low_stock_threshold) || 0,
+              price: product.price || 0,
+              costPrice: product.costPrice || product.cost_price || 0,
+              quantityInStock: product.quantityInStock || product.quantity_in_stock || 0,
+              lowStockThreshold: product.lowStockThreshold || product.low_stock_threshold || 0,
               expiryDate: product.expiryDate || product.expiry_date || null,
               description: product.description || '',
               imageUrl,
@@ -112,10 +107,10 @@ const ProductPage = () => {
               brandId: product.brandId || product.brand_id || '',
               unitId: product.unitId || product.unit_id || '',
               supplierId: product.supplierId || product.supplier_id || '',
-              categoryName: (Array.isArray(categoriesData) && categoriesData.find(c => c.id === (product.categoryId || product.category_id))?.name) || 'N/A',
-              brandName: (Array.isArray(brandsData) && brandsData.find(b => b.id === (product.brandId || product.brand_id))?.name) || 'N/A',
-              unitName: (Array.isArray(unitsData) && unitsData.find(u => u.id === (product.unitId || product.unit_id))?.name) || 'N/A',
-              supplierName: (Array.isArray(suppliersData) && suppliersData.find(s => s.id === (product.supplierId || product.supplier_id))?.companyName) || 'N/A'
+              categoryName: categoriesData.find(c => c.id === (product.categoryId || product.category_id))?.name || 'N/A',
+              brandName: brandsData.find(b => b.id === (product.brandId || product.brand_id))?.name || 'N/A',
+              unitName: unitsData.find(u => u.id === (product.unitId || product.unit_id))?.name || 'N/A',
+              supplierName: suppliersData.find(s => s.id === (product.supplierId || product.supplier_id))?.companyName || 'N/A'
             };
           });
 
@@ -163,23 +158,19 @@ const ProductPage = () => {
       isMounted = false;
       products.forEach(product => {
         if (product.imageUrl) {
-          try {
-            URL.revokeObjectURL(product.imageUrl);
-          } catch (e) {
-            console.error('Error revoking image URL:', e);
-          }
+          URL.revokeObjectURL(product.imageUrl);
         }
       });
     };
   }, [navigate, location, currentPage, itemsPerPage]);
 
   const handleSearch = (e) => {
-    const term = e.target.value.toLowerCase().trim();
+    const term = e.target.value.toLowerCase();
     setSearchTerm(term);
 
     if (term.length > 0) {
       const filtered = products.filter(product =>
-        (product.name && product.name.toLowerCase().includes(term)) ||
+        product.name.toLowerCase().includes(term) ||
         (product.sku && product.sku.toLowerCase().includes(term)) ||
         (product.barcode && product.barcode.toLowerCase().includes(term))
       );
@@ -195,7 +186,6 @@ const ProductPage = () => {
         await deleteProduct(id);
         setProducts(prev => prev.filter(p => p.id !== id));
         setFilteredProducts(prev => prev.filter(p => p.id !== id));
-        setTotalItems(prev => Math.max(0, prev - 1));
         toast.success('Product deleted successfully', {
           position: "top-right",
           autoClose: 3000,
@@ -222,14 +212,14 @@ const ProductPage = () => {
     setSelectedProduct(product);
     setViewMode('edit');
     setEditFormData({
-      name: product.name || '',
-      sku: product.sku || '',
-      barcode: product.barcode || '',
-      description: product.description || '',
-      price: Number(product.price) || 0,
-      costPrice: Number(product.costPrice) || 0,
-      quantityInStock: Number(product.quantityInStock) || 0,
-      lowStockThreshold: Number(product.lowStockThreshold) || 0,
+      name: product.name,
+      sku: product.sku,
+      barcode: product.barcode,
+      description: product.description,
+      price: product.price,
+      costPrice: product.costPrice,
+      quantityInStock: product.quantityInStock,
+      lowStockThreshold: product.lowStockThreshold,
       expiryDate: product.expiryDate ? product.expiryDate.split('T')[0] : '',
       categoryId: product.categoryId || '',
       brandId: product.brandId || '',
@@ -242,13 +232,19 @@ const ProductPage = () => {
 
   const handleEditFormChange = (e) => {
     const { name, value, files } = e.target;
-    setEditFormData(prev => ({
-      ...prev,
-      [name]: name === 'imageFile' ? files[0] : 
-              ['price', 'costPrice', 'quantityInStock', 'lowStockThreshold'].includes(name) ? 
-              Number(value) || 0 : value
-    }));
+    if (name === 'imageFile') {
+      setEditFormData({
+        ...editFormData,
+        [name]: files[0]
+      });
+    } else {
+      setEditFormData({
+        ...editFormData,
+        [name]: value
+      });
+    }
 
+    // Clear error when field is changed
     if (formErrors[name]) {
       setFormErrors(prev => {
         const newErrors = { ...prev };
@@ -262,10 +258,8 @@ const ProductPage = () => {
     const errors = {};
     if (!editFormData.name.trim()) errors.name = 'Name is required';
     if (!editFormData.sku.trim()) errors.sku = 'SKU is required';
-    if (isNaN(editFormData.price) || editFormData.price <= 0) errors.price = 'Valid price is required';
-    if (isNaN(editFormData.quantityInStock) || editFormData.quantityInStock < 0) errors.quantityInStock = 'Valid quantity is required';
-    if (isNaN(editFormData.costPrice) || editFormData.costPrice < 0) errors.costPrice = 'Valid cost price is required';
-    if (isNaN(editFormData.lowStockThreshold) || editFormData.lowStockThreshold < 0) errors.lowStockThreshold = 'Valid threshold is required';
+    if (!editFormData.price || isNaN(editFormData.price) || editFormData.price <= 0) errors.price = 'Valid price is required';
+    if (!editFormData.quantityInStock || isNaN(editFormData.quantityInStock) || editFormData.quantityInStock < 0) errors.quantityInStock = 'Valid quantity is required';
     if (!editFormData.categoryId) errors.categoryId = 'Category is required';
     if (!editFormData.supplierId) errors.supplierId = 'Supplier is required';
 
@@ -287,19 +281,14 @@ const ProductPage = () => {
     try {
       setIsLoading(true);
       
-      const updatedProduct = await updateProduct(selectedProduct.id, editFormData, editFormData.imageFile);
+      await updateProduct(selectedProduct.id, editFormData, editFormData.imageFile);
       
-      const newImageUrl = editFormData.imageFile ? URL.createObjectURL(editFormData.imageFile) : selectedProduct.imageUrl;
-      
+      // Update the products list with the new data
       const updatedProducts = products.map(p => 
         p.id === selectedProduct.id ? { 
           ...p, 
           ...editFormData,
-          imageUrl: newImageUrl,
-          categoryName: relationships.categories.find(c => c.id === editFormData.categoryId)?.name || 'N/A',
-          brandName: relationships.brands.find(b => b.id === editFormData.brandId)?.name || 'N/A',
-          unitName: relationships.units.find(u => u.id === editFormData.unitId)?.name || 'N/A',
-          supplierName: relationships.suppliers.find(s => s.id === editFormData.supplierId)?.companyName || 'N/A'
+          imageUrl: editFormData.imageFile ? URL.createObjectURL(editFormData.imageFile) : p.imageUrl
         } : p
       );
       
@@ -321,12 +310,12 @@ const ProductPage = () => {
     const csvContent = [
       headers.join(','),
       ...filteredProducts.map(product => [
-        `"${(product.sku || '').replace(/"/g, '""')}"`,
-        `"${(product.name || '').replace(/"/g, '""')}"`,
-        `"${(product.categoryName || '').replace(/"/g, '""')}"`,
-        `"${(product.brandName || '').replace(/"/g, '""')}"`,
-        Number(product.price) || 0,
-        Number(product.quantityInStock) || 0
+        `"${product.sku.replace(/"/g, '""')}"`,
+        `"${product.name.replace(/"/g, '""')}"`,
+        `"${product.categoryName.replace(/"/g, '""')}"`,
+        `"${product.brandName.replace(/"/g, '""')}"`,
+        product.price,
+        product.quantityInStock
       ].join(','))
     ].join('\n');
 
@@ -334,11 +323,10 @@ const ProductPage = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `products_export_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', 'products_export.csv');
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(url);
     
     toast.success('CSV export started successfully', {
       position: "top-right",
@@ -355,7 +343,7 @@ const ProductPage = () => {
     printWindow.document.write(`
       <html>
         <head>
-          <title>Product Inventory Report</title>
+          <title>Product List</title>
           <style>
             body { font-family: Arial, sans-serif; margin: 20px; }
             h1 { color: #333; text-align: center; }
@@ -386,14 +374,14 @@ const ProductPage = () => {
             </thead>
             <tbody>
               ${filteredProducts.map(product => `
-                <tr class="${Number(product.quantityInStock) <= Number(product.lowStockThreshold) * 0.5 ? 'very-low-stock' : 
-                  Number(product.quantityInStock) <= Number(product.lowStockThreshold) ? 'low-stock' : ''}">
-                  <td>${product.sku || 'N/A'}</td>
-                  <td>${product.name || 'N/A'}</td>
-                  <td>${product.categoryName || 'N/A'}</td>
-                  <td>${product.brandName || 'N/A'}</td>
-                  <td>${formatCurrency(Number(product.price))}</td>
-                  <td>${Number(product.quantityInStock)} ${product.unitName ? `(${product.unitName})` : ''}</td>
+                <tr class="${product.quantityInStock <= product.lowStockThreshold * 0.5 ? 'very-low-stock' : 
+                  product.quantityInStock <= product.lowStockThreshold ? 'low-stock' : ''}">
+                  <td>${product.sku}</td>
+                  <td>${product.name}</td>
+                  <td>${product.categoryName}</td>
+                  <td>${product.brandName}</td>
+                  <td>${formatCurrency(product.price)}</td>
+                  <td>${product.quantityInStock} ${product.unitName ? `(${product.unitName})` : ''}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -402,7 +390,7 @@ const ProductPage = () => {
             window.onload = function() {
               setTimeout(function() {
                 window.print();
-                setTimeout(window.close, 500);
+                window.close();
               }, 200);
             }
           </script>
@@ -411,14 +399,6 @@ const ProductPage = () => {
     `);
     printWindow.document.close();
   };
-
-  // Calculate pagination range
-  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
-  const startPage = Math.max(0, Math.min(
-    totalPages - 5,
-    currentPage - Math.floor(5 / 2)
-  ));
-  const endPage = Math.min(totalPages, startPage + 5);
 
   return (
     <div className="p-2 sm:p-4 md:p-6 min-h-screen bg-gray-50">
@@ -502,7 +482,7 @@ const ProductPage = () => {
                             {product.imageUrl ? (
                               <img 
                                 src={product.imageUrl} 
-                                alt={product.name || 'Product'} 
+                                alt={product.name} 
                                 className="h-full w-full object-cover"
                                 onError={(e) => {
                                   e.target.src = '';
@@ -519,35 +499,35 @@ const ProductPage = () => {
                           </div>
                         </td>
                         <td className="px-2 py-2 sm:px-3 sm:py-3 whitespace-nowrap text-gray-900 font-medium">
-                          <div className="text-xs sm:text-sm">{product.sku || 'N/A'}</div>
+                          <div className="text-xs sm:text-sm">{product.sku}</div>
                         </td>
                         <td className="px-2 py-2 sm:px-3 sm:py-3 whitespace-nowrap">
-                          <div className="text-xs sm:text-sm font-medium text-gray-900">{product.name || 'N/A'}</div>
+                          <div className="text-xs sm:text-sm font-medium text-gray-900">{product.name}</div>
                           {product.barcode && (
                             <div className="text-xs text-gray-500">Barcode: {product.barcode}</div>
                           )}
                         </td>
                         <td className="px-2 py-2 sm:px-3 sm:py-3 whitespace-nowrap text-gray-500 hidden sm:table-cell">
-                          <div className="text-xs sm:text-sm">{product.categoryName || 'N/A'}</div>
+                          <div className="text-xs sm:text-sm">{product.categoryName}</div>
                         </td>
                         <td className="px-2 py-2 sm:px-3 sm:py-3 whitespace-nowrap text-gray-500 hidden md:table-cell">
-                          <div className="text-xs sm:text-sm">{product.brandName || 'N/A'}</div>
+                          <div className="text-xs sm:text-sm">{product.brandName}</div>
                         </td>
                         <td className="px-2 py-2 sm:px-3 sm:py-3 whitespace-nowrap font-medium text-gray-900">
-                          <div className="text-xs sm:text-sm">{formatCurrency(Number(product.price))}</div>
+                          <div className="text-xs sm:text-sm">{formatCurrency(product.price)}</div>
                         </td>
                         <td className="px-2 py-2 sm:px-3 sm:py-3 whitespace-nowrap">
                           <span className={`inline-flex px-1 py-0.5 sm:px-2 sm:py-1 rounded-full text-xs font-semibold leading-4 ${
-                            Number(product.quantityInStock) <= Number(product.lowStockThreshold) * 0.5 
+                            product.quantityInStock <= product.lowStockThreshold * 0.5 
                               ? 'bg-red-100 text-red-800' 
-                              : Number(product.quantityInStock) <= Number(product.lowStockThreshold) 
+                              : product.quantityInStock <= product.lowStockThreshold 
                                 ? 'bg-yellow-100 text-yellow-800' 
                                 : 'bg-green-100 text-green-800'
                           }`}>
-                            {Number(product.quantityInStock)} {product.unitName && `(${product.unitName})`}
+                            {product.quantityInStock} {product.unitName && `(${product.unitName})`}
                           </span>
-                          {Number(product.lowStockThreshold) > 0 && (
-                            <div className="text-xs text-gray-500 mt-0.5">Threshold: {Number(product.lowStockThreshold)}</div>
+                          {product.lowStockThreshold > 0 && (
+                            <div className="text-xs text-gray-500 mt-0.5">Threshold: {product.lowStockThreshold}</div>
                           )}
                         </td>
                         <td className="px-2 py-2 sm:px-3 sm:py-3 whitespace-nowrap font-medium">
@@ -596,7 +576,7 @@ const ProductPage = () => {
         {/* Pagination Controls */}
         <div className="flex flex-col sm:flex-row items-center justify-between mt-4 gap-2">
           <div className="text-sm text-gray-600">
-            Showing {Math.min(currentPage * itemsPerPage + 1, totalItems)} to {Math.min((currentPage + 1) * itemsPerPage, totalItems)} of {totalItems} results
+            Showing {currentPage * itemsPerPage + 1} to {Math.min((currentPage + 1) * itemsPerPage, totalItems)} of {totalItems} results
           </div>
           
           <div className="flex items-center gap-1">
@@ -616,27 +596,29 @@ const ProductPage = () => {
             <button
               onClick={() => setCurrentPage(0)}
               disabled={currentPage === 0}
-              className="p-1 rounded border disabled:opacity-50 disabled:cursor-not-allowed"
+              className="p-1 rounded border disabled:opacity-50"
             >
               <ChevronsLeft size={16} />
             </button>
             <button
               onClick={() => setCurrentPage(prev => Math.max(prev - 1, 0))}
               disabled={currentPage === 0}
-              className="p-1 rounded border disabled:opacity-50 disabled:cursor-not-allowed"
+              className="p-1 rounded border disabled:opacity-50"
             >
               <ChevronLeft size={16} />
             </button>
             
             <div className="flex gap-1">
-              {Array.from({ length: endPage - startPage }, (_, i) => {
-                const pageNum = startPage + i;
+              {Array.from({ length: Math.min(5, Math.ceil(totalItems / itemsPerPage)) }, (_, i) => {
+                const pageNum = Math.max(0, Math.min(
+                  Math.ceil(totalItems / itemsPerPage) - 5,
+                  currentPage - 2
+                )) + i;
                 return (
                   <button
                     key={pageNum}
                     onClick={() => setCurrentPage(pageNum)}
-                    className={`w-8 h-8 rounded border text-sm ${currentPage === pageNum ? 'bg-blue-500 text-white' : 'hover:bg-gray-100'}`}
-                    disabled={currentPage === pageNum}
+                    className={`w-8 h-8 rounded border text-sm ${currentPage === pageNum ? 'bg-blue-500 text-white' : ''}`}
                   >
                     {pageNum + 1}
                   </button>
@@ -645,16 +627,16 @@ const ProductPage = () => {
             </div>
             
             <button
-              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages - 1))}
-              disabled={currentPage >= totalPages - 1}
-              className="p-1 rounded border disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(totalItems / itemsPerPage) - 1))}
+              disabled={currentPage >= Math.ceil(totalItems / itemsPerPage) - 1}
+              className="p-1 rounded border disabled:opacity-50"
             >
               <ChevronRight size={16} />
             </button>
             <button
-              onClick={() => setCurrentPage(totalPages - 1)}
-              disabled={currentPage >= totalPages - 1}
-              className="p-1 rounded border disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => setCurrentPage(Math.ceil(totalItems / itemsPerPage) - 1)}
+              disabled={currentPage >= Math.ceil(totalItems / itemsPerPage) - 1}
+              className="p-1 rounded border disabled:opacity-50"
             >
               <ChevronsRight size={16} />
             </button>
@@ -683,7 +665,7 @@ const ProductPage = () => {
                     {selectedProduct.imageUrl ? (
                       <img 
                         src={selectedProduct.imageUrl} 
-                        alt={selectedProduct.name || 'Product'} 
+                        alt={selectedProduct.name} 
                         className="h-full w-full object-contain"
                       />
                     ) : (
@@ -699,8 +681,8 @@ const ProductPage = () => {
                 <div>
                   <h3 className="text-sm sm:text-base font-medium text-gray-900 mb-1 sm:mb-2">Basic Information</h3>
                   <div className="space-y-1 text-xs sm:text-sm">
-                    <p><span className="font-medium">Name:</span> {selectedProduct.name || 'N/A'}</p>
-                    <p><span className="font-medium">SKU:</span> {selectedProduct.sku || 'N/A'}</p>
+                    <p><span className="font-medium">Name:</span> {selectedProduct.name}</p>
+                    <p><span className="font-medium">SKU:</span> {selectedProduct.sku}</p>
                     <p><span className="font-medium">Barcode:</span> {selectedProduct.barcode || 'N/A'}</p>
                     <p><span className="font-medium">Description:</span> {selectedProduct.description || 'N/A'}</p>
                   </div>
@@ -709,10 +691,10 @@ const ProductPage = () => {
                 <div>
                   <h3 className="text-sm sm:text-base font-medium text-gray-900 mb-1 sm:mb-2">Pricing & Inventory</h3>
                   <div className="space-y-1 text-xs sm:text-sm">
-                    <p><span className="font-medium">Price:</span> {formatCurrency(Number(selectedProduct.price))}</p>
-                    <p><span className="font-medium">Cost Price:</span> {formatCurrency(Number(selectedProduct.costPrice))}</p>
-                    <p><span className="font-medium">In Stock:</span> {Number(selectedProduct.quantityInStock)} {selectedProduct.unitName && `(${selectedProduct.unitName})`}</p>
-                    <p><span className="font-medium">Low Stock Threshold:</span> {Number(selectedProduct.lowStockThreshold)}</p>
+                    <p><span className="font-medium">Price:</span> {formatCurrency(selectedProduct.price)}</p>
+                    <p><span className="font-medium">Cost Price:</span> {formatCurrency(selectedProduct.costPrice)}</p>
+                    <p><span className="font-medium">In Stock:</span> {selectedProduct.quantityInStock} {selectedProduct.unitName && `(${selectedProduct.unitName})`}</p>
+                    <p><span className="font-medium">Low Stock Threshold:</span> {selectedProduct.lowStockThreshold}</p>
                     {selectedProduct.expiryDate && (
                       <p><span className="font-medium">Expiry Date:</span> {new Date(selectedProduct.expiryDate).toLocaleDateString()}</p>
                     )}
@@ -722,10 +704,10 @@ const ProductPage = () => {
                 <div>
                   <h3 className="text-sm sm:text-base font-medium text-gray-900 mb-1 sm:mb-2">Relationships</h3>
                   <div className="space-y-1 text-xs sm:text-sm">
-                    <p><span className="font-medium">Category:</span> {selectedProduct.categoryName || 'N/A'}</p>
-                    <p><span className="font-medium">Brand:</span> {selectedProduct.brandName || 'N/A'}</p>
-                    <p><span className="font-medium">Unit:</span> {selectedProduct.unitName || 'N/A'}</p>
-                    <p><span className="font-medium">Supplier:</span> {selectedProduct.supplierName || 'N/A'}</p>
+                    <p><span className="font-medium">Category:</span> {selectedProduct.categoryName}</p>
+                    <p><span className="font-medium">Brand:</span> {selectedProduct.brandName}</p>
+                    <p><span className="font-medium">Unit:</span> {selectedProduct.unitName}</p>
+                    <p><span className="font-medium">Supplier:</span> {selectedProduct.supplierName}</p>
                   </div>
                 </div>
               </div>
@@ -833,13 +815,10 @@ const ProductPage = () => {
                       name="costPrice"
                       value={editFormData.costPrice}
                       onChange={handleEditFormChange}
-                      className={`w-full border ${formErrors.costPrice ? 'border-red-500' : 'border-gray-300'} px-2 py-1.5 sm:px-3 sm:py-2 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none transition text-xs sm:text-sm`}
+                      className="w-full border border-gray-300 px-2 py-1.5 sm:px-3 sm:py-2 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none transition text-xs sm:text-sm"
                       step="0.01"
                       min="0"
                     />
-                    {formErrors.costPrice && (
-                      <p className="mt-1 text-xs text-red-500">{formErrors.costPrice}</p>
-                    )}
                   </div>
 
                   <div className="col-span-1">
@@ -851,7 +830,6 @@ const ProductPage = () => {
                       onChange={handleEditFormChange}
                       className={`w-full border ${formErrors.quantityInStock ? 'border-red-500' : 'border-gray-300'} px-2 py-1.5 sm:px-3 sm:py-2 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none transition text-xs sm:text-sm`}
                       min="0"
-                      step="1"
                       required
                     />
                     {formErrors.quantityInStock && (
@@ -866,13 +844,9 @@ const ProductPage = () => {
                       name="lowStockThreshold"
                       value={editFormData.lowStockThreshold}
                       onChange={handleEditFormChange}
-                      className={`w-full border ${formErrors.lowStockThreshold ? 'border-red-500' : 'border-gray-300'} px-2 py-1.5 sm:px-3 sm:py-2 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none transition text-xs sm:text-sm`}
+                      className="w-full border border-gray-300 px-2 py-1.5 sm:px-3 sm:py-2 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none transition text-xs sm:text-sm"
                       min="0"
-                      step="1"
                     />
-                    {formErrors.lowStockThreshold && (
-                      <p className="mt-1 text-xs text-red-500">{formErrors.lowStockThreshold}</p>
-                    )}
                   </div>
 
                   <div className="col-span-1">
@@ -898,7 +872,7 @@ const ProductPage = () => {
                       <option value="">Select Category</option>
                       {relationships.categories.map(category => (
                         <option key={category.id} value={category.id}>
-                          {category.name || 'N/A'}
+                          {category.name}
                         </option>
                       ))}
                     </select>
@@ -918,7 +892,7 @@ const ProductPage = () => {
                       <option value="">Select Brand</option>
                       {relationships.brands.map(brand => (
                         <option key={brand.id} value={brand.id}>
-                          {brand.name || 'N/A'}
+                          {brand.name}
                         </option>
                       ))}
                     </select>
@@ -935,7 +909,7 @@ const ProductPage = () => {
                       <option value="">Select Unit</option>
                       {relationships.units.map(unit => (
                         <option key={unit.id} value={unit.id}>
-                          {unit.name || 'N/A'}
+                          {unit.name}
                         </option>
                       ))}
                     </select>
@@ -957,7 +931,7 @@ const ProductPage = () => {
                           value={supplier.id}
                           className="text-gray-900"
                         >
-                          {supplier.companyName || supplier.name || 'N/A'}
+                          {supplier.companyName || supplier.name}
                         </option>
                       ))}
                     </select>
