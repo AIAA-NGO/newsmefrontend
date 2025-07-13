@@ -23,8 +23,18 @@ export const cartService = {
     return response.data;
   },
 
+  async applyDiscount(discountCode) {
+    const response = await axios.post(`${API_BASE_URL}/cart/apply-discount`, { discountCode });
+    return response.data;
+  },
+
   async checkout(checkoutData) {
     const response = await axios.post(`${API_BASE_URL}/cart/checkout`, checkoutData);
     return response.data;
+  },
+
+  async clearCart() {
+    // This would be handled by the backend after successful checkout
+    // Frontend should also clear local cart state
   }
 };

@@ -1,139 +1,110 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { cartService } from '../services/cartService';
 
 const CartContext = createContext();
 
 export const CartProvider = ({ children }) => {
-  const getCartFromSession = () => {
-    const cartData = sessionStorage.getItem('cart');
-    return cartData ? JSON.parse(cartData) : {
-      items: [],
-      subtotal: 0,
-      discount: 0,
-      tax: 0,
-      total: 0
-    };
-  };
+  const [cart, setCart] = useState({
+    items: [],
+    subtotal: 0,
+    discount: 0,
+    tax: 0,
+    total: 0
+  });
 
-  const saveCartToSession = (cart) => {
-    sessionStorage.setItem('cart', JSON.stringify(cart));
-  };
-
-  const calculateCartTotals = (items) => {
-    const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const discount = items.reduce((sum, item) => sum + ((item.discountAmount || 0) * item.quantity), 0);
-    const taxableAmount = subtotal - discount;
-    const tax = taxableAmount - (taxableAmount / 1.16); // Reverse calculate 16% tax
-    
-    return { 
-      subtotal: parseFloat(subtotal.toFixed(2)),
-      discount: parseFloat(discount.toFixed(2)),
-      tax: parseFloat(tax.toFixed(2)),
-      total: parseFloat(subtotal.toFixed(2)) // Total is same as subtotal (tax inclusive)
-    };
-  };
-
-  const [cart, setCart] = useState(getCartFromSession());
-
-  const updateCart = (newCart) => {
-    const cartWithTotals = {
-      ...newCart,
-      ...calculateCartTotals(newCart.items)
-    };
-    setCart(cartWithTotals);
-    saveCartToSession(cartWithTotals);
-  };
-
-  const addToCart = (product, quantity = 1) => {
-    const productStock = product.quantity_in_stock || 0;
-    const existingItem = cart.items.find(item => item.id === product.id);
-
-    if (productStock < 1) return;
-
-    // Calculate discount amount if percentage exists
-    const discountAmount = product.discountPercentage 
-      ? (product.price * product.discountPercentage / 100)
-      : 0;
-
-    let updatedItems;
-    if (existingItem) {
-      if (existingItem.quantity + quantity > productStock) {
-        return;
+  // Fetch cart from backend on initial load
+  useEffect(() => {
+    const fetchCart = async () => {
+      try {
+        const cartData = await cartService.getCart();
+        setCart(cartData);
+      } catch (error) {
+        console.error('Failed to fetch cart:', error);
       }
-      updatedItems = cart.items.map(item => 
-        item.id === product.id 
-          ? { 
-              ...item, 
-              quantity: item.quantity + quantity,
-              discountPercentage: product.discountPercentage,
-              discountAmount
-            }
-          : item
-      );
-    } else {
-      updatedItems = [
-        ...cart.items,
-        {
-          id: product.id,
-          name: product.name,
-          price: product.price,
-          quantity: quantity,
-          discountPercentage: product.discountPercentage,
-          discountAmount,
-          imageUrl: product.hasImage ? `/api/products/${product.id}/image` : null,
-          stock: product.quantity_in_stock,
-          sku: product.sku || '',
-          barcode: product.barcode || ''
-        }
-      ];
+    };
+    fetchCart();
+  }, []);
+
+  const syncWithBackend = async () => {
+    try {
+      const updatedCart = await cartService.getCart();
+      setCart(updatedCart);
+    } catch (error) {
+      console.error('Failed to sync cart:', error);
     }
-
-    updateCart({
-      items: updatedItems
-    });
   };
 
-  const removeFromCart = (id) => {
-    const updatedItems = cart.items.filter(item => item.id !== id);
-    updateCart({
-      items: updatedItems
-    });
-  };
-
-  const updateQuantity = (id, newQuantity) => {
-    if (newQuantity < 1) {
-      removeFromCart(id);
-      return;
+  const addToCart = async (product, quantity = 1) => {
+    try {
+      const item = {
+        productId: product.id,
+        quantity,
+        price: product.price,
+        discountPercentage: product.discountPercentage || 0
+      };
+      await cartService.addItemsToCart([item]);
+      await syncWithBackend();
+    } catch (error) {
+      console.error('Failed to add item to cart:', error);
+      throw error;
     }
-    
-    const updatedItems = cart.items.map(item => {
-      if (item.id === id) {
-        return { ...item, quantity: newQuantity };
-      }
-      return item;
-    });
-    
-    updateCart({
-      items: updatedItems
-    });
   };
 
-  const clearCart = () => {
-    updateCart({
-      items: [],
-      subtotal: 0,
-      discount: 0,
-      tax: 0,
-      total: 0
-    });
+  const updateQuantity = async (productId, newQuantity) => {
+    try {
+      await cartService.updateCartItemQuantity(productId, newQuantity);
+      await syncWithBackend();
+    } catch (error) {
+      console.error('Failed to update quantity:', error);
+      throw error;
+    }
+  };
+
+  const removeFromCart = async (productId) => {
+    try {
+      await cartService.removeItemFromCart(productId);
+      await syncWithBackend();
+    } catch (error) {
+      console.error('Failed to remove item:', error);
+      throw error;
+    }
+  };
+
+  const applyDiscount = async (discountCode) => {
+    try {
+      await cartService.applyDiscount(discountCode);
+      await syncWithBackend();
+    } catch (error) {
+      console.error('Failed to apply discount:', error);
+      throw error;
+    }
+  };
+
+  const checkout = async (checkoutData) => {
+    try {
+      const result = await cartService.checkout(checkoutData);
+      setCart({
+        items: [],
+        subtotal: 0,
+        discount: 0,
+        tax: 0,
+        total: 0
+      });
+      return result;
+    } catch (error) {
+      console.error('Checkout failed:', error);
+      throw error;
+    }
   };
 
   return (
     <CartContext.Provider value={{ 
       cart, 
       addToCart, 
-      removeFromCart, 
       updateQuantity, 
-      clearCart 
+      removeFromCart,
+      applyDiscount,
+      checkout
     }}>
       {children}
     </CartContext.Provider>
