@@ -13,6 +13,7 @@ const apiClient = axios.create({
 
 // Enhanced request interceptor
 apiClient.interceptors.request.use(config => {
+  console.log(`Making ${config.method?.toUpperCase()} request to:`, config.url);
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -23,63 +24,62 @@ apiClient.interceptors.request.use(config => {
   return Promise.reject(error);
 });
 
-// Enhanced response interceptor with consistent error handling
+// Response interceptor for better error handling
 apiClient.interceptors.response.use(
   response => {
-    // Normalize successful responses to always include data
-    return {
-      ...response,
-      data: response.data || null
-    };
+    console.log('Response received:', {
+      status: response.status,
+      url: response.config.url,
+      data: response.data
+    });
+    return response;
   },
   error => {
-    const errorData = {
+    const errorDetails = {
       message: error.message,
-      status: error.response?.status,
       url: error.config?.url,
-      data: error.response?.data
+      method: error.config?.method,
+      status: error.response?.status,
+      responseData: error.response?.data,
+      headers: error.response?.headers
     };
-    
-    console.error('API Error:', errorData);
-    
-    // Return a consistent error structure
-    return Promise.reject({
-      ...errorData,
-      isApiError: true
-    });
+    console.error('API Error:', errorDetails);
+    return Promise.reject(error);
   }
 );
 
 export const InventoryService = {
-  async getInventoryStatus(search, categoryId, brandId, lowStockOnly, expiredOnly, pageable) {
-    try {
-      const params = {
-        ...(pageable || {}),
-        search: search || undefined,
-        categoryId: categoryId || undefined,
-        brandId: brandId || undefined,
-        lowStockOnly: lowStockOnly || undefined,
-        expiredOnly: expiredOnly || undefined
-      };
-      
-      const response = await apiClient.get('/inventory', { params });
-      return Array.isArray(response.data) ? response.data : response.data?.content || [];
-    } catch (error) {
-      console.error('Error fetching inventory:', error);
-      throw error;
-    }
+async getInventoryStatus(search, categoryId, brandId, lowStockOnly, expiredOnly, pageable) {
+  try {
+    // Declare params object properly
+    const params = {
+      ...pageable,  // This spreads the pageable properties
+      search: search || undefined,
+      categoryId: categoryId || undefined,
+      brandId: brandId || undefined,
+      lowStockOnly: lowStockOnly || undefined,
+      expiredOnly: expiredOnly || undefined
+    };
+    
+    const response = await apiClient.get('/inventory', { params });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching inventory:', error);
+    throw error;
+  }
+
   },
 
   async adjustInventory(request) {
     try {
-      if (!request || !request.productId) {
-        throw new Error('Invalid adjustment request');
-      }
-      
       const response = await apiClient.post('/inventory/adjust', request);
-      return response.data || {};
+      return response.data;
     } catch (error) {
-      console.error('Error adjusting inventory:', error);
+      console.error('Error adjusting inventory:', {
+        request,
+        error: error.message,
+        response: error.response?.data
+      });
       throw error;
     }
   },
@@ -87,41 +87,46 @@ export const InventoryService = {
   async removeExpiredProducts() {
     try {
       const response = await apiClient.post('/inventory/remove-expired');
-      return response.data || { success: true };
+      return response.data;
     } catch (error) {
-      console.error('Error removing expired products:', error);
+      console.error('Error removing expired products:', {
+        error: error.message,
+        response: error.response?.data
+      });
       throw error;
     }
   },
 
   async deleteProduct(productId) {
     try {
-      if (!productId) {
-        throw new Error('Product ID is required');
-      }
-      
       const response = await apiClient.delete(`/products/${productId}`);
-      return response.data || { success: true };
+      return response.data;
     } catch (error) {
-      console.error('Error deleting product:', error);
-      throw {
-        ...error,
+      console.error('Error deleting product:', {
         productId,
-        isProductError: true
-      };
+        error: error.message,
+        status: error.response?.status,
+        response: error.response?.data
+      });
+      
+      // Enhance the error message before throwing
+      const enhancedError = new Error(error.message);
+      enhancedError.response = error.response;
+      enhancedError.productId = productId;
+      throw enhancedError;
     }
   },
 
   async getAdjustmentHistory(productId) {
     try {
-      if (!productId) {
-        return [];
-      }
-      
       const response = await apiClient.get(`/inventory/adjustments/${productId}`);
-      return Array.isArray(response.data) ? response.data : [];
+      return response.data;
     } catch (error) {
-      console.error('Error fetching adjustment history:', error);
+      console.error('Error fetching adjustment history:', {
+        productId,
+        error: error.message,
+        response: error.response?.data
+      });
       throw error;
     }
   },
@@ -129,62 +134,74 @@ export const InventoryService = {
   async getLowStockSuggestions() {
     try {
       const response = await apiClient.get('/inventory/low-stock-suggestions');
-      return Array.isArray(response.data) ? response.data : [];
+      return response.data;
     } catch (error) {
-      console.error('Error fetching low stock suggestions:', error);
+      console.error('Error fetching low stock suggestions:', {
+        error: error.message,
+        response: error.response?.data
+      });
       throw error;
     }
   },
 
-  async getLowStockItems() {
-    try {
-      const response = await apiClient.get('/dashboard/low-stock');
-      
-      if (!response.data) {
-        console.warn('No data received from low stock endpoint');
-        return [];
-      }
-
-      // Normalize the response structure
-      return (Array.isArray(response.data) ? response.data : []).map(item => ({
-        id: item.productId || Math.random().toString(36).substr(2, 9),
-        name: item.productName || 'Unknown Product',
-        sku: item.sku || '',
-        quantityInStock: item.currentStock || 0,
-        lowStockThreshold: item.threshold || 10,
-        categoryName: item.category || 'Uncategorized',
-        unitName: item.unitName || 'units',
-        expiryDate: item.expiryDate || null,
-        imageUrl: item.imageUrl || null
-      }));
-    } catch (error) {
-      console.error('Error fetching low stock items:', error);
-      return [];
+async getLowStockItems() {
+  try {
+    const response = await apiClient.get('/dashboard/low-stock');
+    
+    if (!response.data) {
+      throw new Error('No data received from low stock endpoint');
     }
-  },
+
+    // Map the dashboard response to match expected structure
+    return response.data.map(item => ({
+      id: item.productId || Math.random().toString(36).substr(2, 9),
+      name: item.productName || 'Unknown Product',
+      sku: item.sku || '',
+      quantityInStock: item.currentStock || 0,
+      lowStockThreshold: item.threshold || 10,
+      categoryName: item.category || 'Uncategorized',
+      unitName: 'units', // Default unit
+      expiryDate: item.expiryDate || null,
+      imageUrl: item.imageUrl || null
+    }));
+  } catch (error) {
+    console.error('Error fetching low stock items:', {
+      error: error.message,
+      url: '/dashboard/low-stock',
+      status: error.response?.status,
+      response: error.response?.data
+    });
+    
+    // Return empty array instead of throwing to prevent UI crashes
+    return [];
+  }
+},
 
   async getExpiringProducts() {
     try {
       const response = await apiClient.get('/products/expiring');
-      return Array.isArray(response.data) ? response.data : [];
+      return response.data;
     } catch (error) {
-      console.error('Error fetching expiring products:', error);
+      console.error('Error fetching expiring products:', {
+        error: error.message,
+        response: error.response?.data
+      });
       throw error;
     }
   },
 
   async searchProducts(query) {
     try {
-      if (!query || typeof query !== 'string') {
-        return [];
-      }
-      
       const response = await apiClient.get('/products/search', {
         params: { query }
       });
-      return Array.isArray(response.data) ? response.data : [];
+      return response.data;
     } catch (error) {
-      console.error('Error searching products:', error);
+      console.error('Error searching products:', {
+        query,
+        error: error.message,
+        response: error.response?.data
+      });
       throw error;
     }
   },
@@ -192,55 +209,41 @@ export const InventoryService = {
   async getInventoryValuation() {
     try {
       const response = await apiClient.get('/inventory/valuation');
-      return Array.isArray(response.data) ? response.data : response.data?.content || [];
+      return response.data;
     } catch (error) {
-      console.error('Error fetching inventory valuation:', error);
+      console.error('Error fetching inventory valuation:', {
+        error: error.message,
+        response: error.response?.data
+      });
       throw error;
     }
   },
 
   async getProductDetails(productId) {
     try {
-      if (!productId) {
-        throw new Error('Product ID is required');
-      }
-      
       const response = await apiClient.get(`/products/${productId}`);
-      return response.data || {};
+      return response.data;
     } catch (error) {
-      console.error('Error fetching product details:', error);
+      console.error('Error fetching product details:', {
+        productId,
+        error: error.message,
+        response: error.response?.data
+      });
       throw error;
     }
   },
 
   async updateProductStock(productId, quantity) {
     try {
-      if (!productId || typeof quantity !== 'number') {
-        throw new Error('Invalid parameters for stock update');
-      }
-      
       const response = await apiClient.post(`/products/${productId}/stock`, { quantity });
-      return response.data || {};
+      return response.data;
     } catch (error) {
-      console.error('Error updating product stock:', error);
-      throw error;
-    }
-  },
-
-  // New method to get combined inventory data
-  async getFullInventoryReport() {
-    try {
-      const [products, inventory] = await Promise.all([
-        apiClient.get('/products'),
-        this.getInventoryValuation()
-      ]);
-      
-      return {
-        products: Array.isArray(products.data) ? products.data : [],
-        inventory: Array.isArray(inventory) ? inventory : []
-      };
-    } catch (error) {
-      console.error('Error fetching full inventory report:', error);
+      console.error('Error updating product stock:', {
+        productId,
+        quantity,
+        error: error.message,
+        response: error.response?.data
+      });
       throw error;
     }
   }
