@@ -59,11 +59,10 @@ const CreatePurchase = () => {
   const fetchProducts = async () => {
     setFetchingProducts(true);
     try {
-      const data = await getAllProducts();
-      if (!Array.isArray(data)) {
-        throw new Error('Products data is not an array');
-      }
-      setProducts(data);
+      const response = await getAllProducts();
+      // Handle paginated response by accessing the 'content' property
+      const productsData = Array.isArray(response?.content) ? response.content : [];
+      setProducts(productsData);
     } catch (error) {
       console.error('Failed to fetch products:', error);
       message.error('Failed to fetch products');
