@@ -137,19 +137,14 @@ const InventoryValuationReport = () => {
         getAllProducts()
       ]);
 
-      // Get inventory valuation data directly
-      let inventoryValuation = [];
-      try {
-        const response = await InventoryService.getInventoryValuation();
-        inventoryValuation = Array.isArray(response) ? response : [];
-      } catch (error) {
-        console.error('Error fetching inventory valuation:', error);
-        inventoryValuation = [];
-      }
-
+      // Get inventory status for all products at once if possible
+      const inventoryStatus = await InventoryService.getInventoryStatus();
+      
       const processedData = products.map(product => {
-        // Find inventory valuation for this product
-        const inventoryItem = inventoryValuation.find(item => item.productId === product.id);
+        // Find inventory item for this product
+        const inventoryItem = Array.isArray(inventoryStatus) 
+          ? inventoryStatus.find(item => item.productId === product.id) 
+          : null;
 
         // Use inventory quantity if available, otherwise fall back to product quantity
         const currentStock = inventoryItem?.quantity ?? product.quantityInStock ?? 0;
@@ -218,6 +213,7 @@ const InventoryValuationReport = () => {
           value: category
         }))
       };
+      // Note: In a real component, you would setColumns(updatedColumns) if columns were state
     }
   };
 
