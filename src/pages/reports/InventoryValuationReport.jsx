@@ -129,65 +129,65 @@ const InventoryValuationReport = () => {
     return 'HIGH';
   };
 
-const fetchInventoryReport = async () => {
-  setLoading(true);
-  try {
-    const [categoriesData, products] = await Promise.all([
-      fetchCategories(),
-      getAllProducts()
-    ]);
-
-    // Get inventory status - ensure it's always treated as an array
-    let inventoryStatus = [];
+  const fetchInventoryReport = async () => {
+    setLoading(true);
     try {
-      const statusResponse = await InventoryService.getInventoryStatus();
-      inventoryStatus = Array.isArray(statusResponse) ? statusResponse : [];
+      const [categoriesData, products] = await Promise.all([
+        fetchCategories(),
+        getAllProducts()
+      ]);
+
+      // Get inventory valuation data directly
+      let inventoryValuation = [];
+      try {
+        const response = await InventoryService.getInventoryValuation();
+        inventoryValuation = Array.isArray(response) ? response : [];
+      } catch (error) {
+        console.error('Error fetching inventory valuation:', error);
+        inventoryValuation = [];
+      }
+
+      const processedData = products.map(product => {
+        // Find inventory valuation for this product
+        const inventoryItem = inventoryValuation.find(item => item.productId === product.id);
+
+        // Use inventory quantity if available, otherwise fall back to product quantity
+        const currentStock = inventoryItem?.quantity ?? product.quantityInStock ?? 0;
+        const reorderLevel = product.lowStockThreshold || 0;
+        const unitCost = product.costPrice || 0;
+        const totalValue = unitCost * currentStock;
+        const stockStatus = getStockStatus(currentStock, reorderLevel);
+        
+        // Find category name
+        const productCategory = categoriesData.find(cat => cat.id === product.categoryId);
+        const categoryName = productCategory?.name || product.category?.name || 'Uncategorized';
+        
+        return {
+          ...product,
+          ...inventoryItem,
+          id: product.id,
+          sku: product.sku,
+          name: product.name,
+          currentStock,
+          totalValue,
+          stockStatus,
+          categoryName,
+          costPrice: unitCost,
+          lowStockThreshold: reorderLevel
+        };
+      });
+
+      setData(processedData);
+      calculateSummary(processedData);
+      updateCategoryFilters(processedData);
+      
     } catch (error) {
-      console.error('Error fetching inventory status:', error);
-      inventoryStatus = [];
+      console.error('Error fetching inventory report:', error);
+      message.error(`Failed to load inventory report: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
-
-    const processedData = products.map(product => {
-      // Find inventory item for this product
-      const inventoryItem = inventoryStatus.find(item => item.productId === product.id);
-
-      // Use inventory quantity if available, otherwise fall back to product quantity
-      const currentStock = inventoryItem?.quantity ?? product.quantityInStock ?? 0;
-      const reorderLevel = product.lowStockThreshold || 0;
-      const unitCost = product.costPrice || 0;
-      const totalValue = unitCost * currentStock;
-      const stockStatus = getStockStatus(currentStock, reorderLevel);
-      
-      // Find category name
-      const productCategory = categoriesData.find(cat => cat.id === product.categoryId);
-      const categoryName = productCategory?.name || product.category?.name || 'Uncategorized';
-      
-      return {
-        ...product,
-        ...inventoryItem,
-        id: product.id,
-        sku: product.sku,
-        name: product.name,
-        currentStock,
-        totalValue,
-        stockStatus,
-        categoryName,
-        costPrice: unitCost,
-        lowStockThreshold: reorderLevel
-      };
-    });
-
-    setData(processedData);
-    calculateSummary(processedData);
-    updateCategoryFilters(processedData);
-    
-  } catch (error) {
-    console.error('Error fetching inventory report:', error);
-    message.error(`Failed to load inventory report: ${error.message}`);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const calculateSummary = (inventoryData) => {
     const totalValue = inventoryData.reduce((sum, item) => sum + (item.totalValue || 0), 0);
@@ -218,7 +218,6 @@ const fetchInventoryReport = async () => {
           value: category
         }))
       };
-      // Note: In a real component, you would setColumns(updatedColumns) if columns were state
     }
   };
 
