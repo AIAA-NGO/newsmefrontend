@@ -120,54 +120,37 @@ const ProductPerformanceReport = () => {
     },
   ], []);
 
+  const fetchProductReport = async () => {
+    if (!startDate || !endDate) {
+      message.warning('Please select both start and end dates');
+      return;
+    }
 
+    if (startDate.isAfter(endDate)) {
+      message.warning('Start date cannot be after end date');
+      return;
+    }
 
+    setLoading(true);
+    try {
+      const [categoriesData, productsData, salesData] = await Promise.all([
+        getCategories(),
+        getAllProducts(),
+        getSalesByDateRange(startDate.format('YYYY-MM-DD'), endDate.format('YYYY-MM-DD'))
+      ]);
 
+      setCategories(categoriesData || []);
 
-
-
-
-
-
-const fetchProductReport = async () => {
-  if (!startDate || !endDate) {
-    message.warning('Please select both start and end dates');
-    return;
-  }
-
-  if (startDate.isAfter(endDate)) {
-    message.warning('Start date cannot be after end date');
-    return;
-  }
-
-  setLoading(true);
-  try {
-    const [categoriesData, products, salesData] = await Promise.all([
-      getCategories(),
-      getAllProducts(),
-      getSalesByDateRange(startDate.format('YYYY-MM-DD'), endDate.format('YYYY-MM-DD'))
-    ]);
-
-    console.log('Fetched Categories:', categoriesData);
-    console.log('Fetched Products:', products);
-    console.log('Fetched Sales:', salesData);
-
-    setCategories(categoriesData || []);
-
-    const productSalesMap = {};
-
-    (salesData || []).forEach(sale => {
-      (sale.items || []).forEach(item => {
-        const productId = String(item.productId || item.product_id);
-        if (!productId) return;
-        productSalesMap[productId] = (productSalesMap[productId] || 0) + item.quantity;
+      const productSalesMap = {};
+      (salesData || []).forEach(sale => {
+        (sale.items || []).forEach(item => {
+          const productId = String(item.productId || item.product_id);
+          if (!productId) return;
+          productSalesMap[productId] = (productSalesMap[productId] || 0) + item.quantity;
+        });
       });
-    });
 
-    console.log('Computed Product Sales Map:', productSalesMap);
-
-    if (Array.isArray(products)) {
-      const processedData = products.map(product => {
+      const processedData = (productsData?.data || []).map(product => {
         const productId = String(product.id);
         const unitsSold = productSalesMap[productId] || 0;
         const sellingPrice = Number(product.price) || 0;
@@ -197,8 +180,6 @@ const fetchProductReport = async () => {
         };
       });
 
-      console.log('Processed Report Data:', processedData);
-
       setData(processedData);
 
       const totalRevenue = processedData.reduce((sum, item) => sum + (item.revenue || 0), 0);
@@ -213,25 +194,27 @@ const fetchProductReport = async () => {
         totalProfit,
         avgProfitMargin
       });
-    } else {
-      message.error('No product data available');
+
+    } catch (error) {
+      console.error('Error fetching product report:', error);
+      message.error(error.message || 'Failed to fetch product performance data');
       setData([]);
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error('Error fetching product report:', error);
-    message.error(error.message || 'Failed to fetch product performance data');
-    setData([]);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
-
-
-
-
-
-
+  const handleExport = () => {
+    setExportLoading(true);
+    try {
+      // Implement your export logic here
+      message.success('Export functionality not implemented yet');
+    } catch (error) {
+      message.error('Failed to export report');
+    } finally {
+      setExportLoading(false);
+    }
+  };
 
   useEffect(() => {
     fetchProductReport();
