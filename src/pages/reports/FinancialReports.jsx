@@ -1,13 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  getProfitLossReport, 
-  getSalesReport, 
-  getProductPerformanceReport, 
-  getInventoryValuationReport,
-  getSupplierPurchaseReport,
-  getDailySummary,
-  exportReport
-} from '../../services/profitService';
+import { getProfitLossReport } from '../../services/profitService';
 import {
   Box,
   Typography,
@@ -33,10 +25,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField,
-  Select,
-  InputLabel,
-  FormControl
+  TextField
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -62,16 +51,13 @@ const FinancialReports = () => {
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [startDate, setStartDate] = useState(new Date('2024-07-15'));
-  const [endDate, setEndDate] = useState(new Date('2025-07-15'));
+  const [startDate, setStartDate] = useState(subDays(new Date(), 30));
+  const [endDate, setEndDate] = useState(new Date());
   const [noData, setNoData] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   const [chartDialogOpen, setChartDialogOpen] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [dateError, setDateError] = useState(false);
-  const [reportType, setReportType] = useState('PROFIT_LOSS');
-  const [shareEmail, setShareEmail] = useState('');
-  const [shareMessage, setShareMessage] = useState('');
 
   const open = Boolean(anchorEl);
 
@@ -83,77 +69,61 @@ const FinancialReports = () => {
     setAnchorEl(null);
   };
 
-  const fetchReportData = async () => {
-    if (!startDate || !endDate) {
-      setDateError(true);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    setNoData(false);
-    setDateError(false);
-
-    try {
-      let data;
-      switch (reportType) {
-        case 'PROFIT_LOSS':
-          data = await getProfitLossReport(startDate, endDate);
-          break;
-        case 'SALES':
-          data = await getSalesReport(startDate, endDate);
-          break;
-        case 'PRODUCTS':
-          data = await getProductPerformanceReport(startDate, endDate);
-          break;
-        case 'INVENTORY':
-          data = await getInventoryValuationReport();
-          break;
-        case 'SUPPLIERS':
-          data = await getSupplierPurchaseReport(startDate, endDate);
-          break;
-        case 'DAILY_SUMMARY':
-          data = await getDailySummary(endDate);
-          break;
-        default:
-          throw new Error('Invalid report type');
-      }
-
-      if (!data || (Array.isArray(data) && data.length === 0) || 
-          (typeof data === 'object' && Object.values(data).every(val => val === 0 || val === null))) {
-        setNoData(true);
-        setReportData(null);
-      } else {
-        setReportData(data);
-      }
-    } catch (err) {
-      console.error('Error fetching report data:', err);
-      setError(err.message || 'Failed to fetch report data');
+const fetchProfitData = async () => {
+  if (!startDate || !endDate) {
+    setDateError(true);
+    return;
+  }
+  
+  setLoading(true);
+  setError(null);
+  setNoData(false);
+  setDateError(false);
+  
+  try {
+    const data = await getProfitLossReport(startDate, endDate);
+    if (data && data.totalRevenue === 0 && data.totalCosts === 0) {
+      setNoData(true);
       setReportData(null);
-    } finally {
-      setLoading(false);
+    } else {
+      setReportData(data);
     }
-  };
-
+  } catch (err) {
+    console.error('Error fetching profit data:', err);
+    setError(err.response?.data?.message || err.message || 'Failed to fetch report data');
+    setReportData(null);
+  } finally {
+    setLoading(false);
+  }
+};
   useEffect(() => {
     let isMounted = true;
-
+    
     const loadData = async () => {
-      if (isMounted && startDate && endDate) {
-        await fetchReportData();
+      try {
+        if (startDate && endDate) {
+          await fetchProfitData();
+        }
+      } catch (err) {
+        if (isMounted) {
+          console.error('Error in initial load:', err);
+          setError(err.message || 'Failed to load initial data');
+        }
       }
     };
 
-    loadData();
+    if (isMounted) {
+      loadData();
+    }
 
     return () => {
       isMounted = false;
     };
-  }, [reportType, startDate, endDate]);
+  }, []);
 
   const handleDateSubmit = (e) => {
     e.preventDefault();
-    fetchReportData();
+    fetchProfitData();
   };
 
   const formatCurrency = (amount) => {
@@ -162,51 +132,65 @@ const FinancialReports = () => {
       currency: 'KES',
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
-    }).format(amount || 0);
+    }).format(amount);
   };
 
-  const downloadPDF = async () => {
-    try {
-      const blob = await exportReport({
-        reportType: reportType,
-        startDate,
-        endDate,
-        format: 'PDF'
-      });
-      saveAs(blob, `report-${reportType.toLowerCase()}-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
-    } catch (err) {
-      setError('Failed to export PDF');
-    }
+  const downloadPDF = () => {
+    const input = document.getElementById('report-content');
+    html2canvas(input, { scale: 2 }).then(canvas => {
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgWidth = 210;
+      const pageHeight = 295;
+      const imgHeight = canvas.height * imgWidth / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
+      
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+      
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+      
+      pdf.save(`profit-loss-report-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+    });
     handleMenuClose();
   };
 
-  const downloadCSV = async () => {
-    try {
-      const blob = await exportReport({
-        reportType: reportType,
-        startDate,
-        endDate,
-        format: 'CSV'
-      });
-      saveAs(blob, `report-${reportType.toLowerCase()}-${format(new Date(), 'yyyy-MM-dd')}.csv`);
-    } catch (err) {
-      setError('Failed to export CSV');
-    }
+  const downloadCSV = () => {
+    if (!reportData) return;
+    
+    const csvData = [
+      ['Metric', 'Amount (KES)'],
+      ['Total Revenue', reportData.totalRevenue],
+      ['Total Costs', reportData.totalCosts],
+      ['Net Profit', reportData.netProfit],
+      ['Profit Margin', `${((reportData.netProfit / reportData.totalRevenue) * 100 || 0).toFixed(2)}%`]
+    ];
+    
+    const csvContent = csvData.map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    saveAs(blob, `profit-loss-report-${format(new Date(), 'yyyy-MM-dd')}.csv`);
     handleMenuClose();
   };
 
-  const downloadExcel = async () => {
-    try {
-      const blob = await exportReport({
-        reportType: reportType,
-        startDate,
-        endDate,
-        format: 'EXCEL'
-      });
-      saveAs(blob, `report-${reportType.toLowerCase()}-${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
-    } catch (err) {
-      setError('Failed to export Excel');
-    }
+  const downloadExcel = () => {
+    if (!reportData) return;
+    
+    const ws = XLSX.utils.json_to_sheet([
+      { Metric: 'Total Revenue', 'Amount (KES)': reportData.totalRevenue },
+      { Metric: 'Total Costs', 'Amount (KES)': reportData.totalCosts },
+      { Metric: 'Net Profit', 'Amount (KES)': reportData.netProfit },
+      { Metric: 'Profit Margin', 'Amount (KES)': `${((reportData.netProfit / reportData.totalRevenue) * 100 || 0).toFixed(2)}%` }
+    ]);
+    
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Profit & Loss");
+    XLSX.writeFile(wb, `profit-loss-report-${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
     handleMenuClose();
   };
 
@@ -214,7 +198,9 @@ const FinancialReports = () => {
     chart: {
       type: 'bar',
       height: 350,
-      toolbar: { show: true }
+      toolbar: {
+        show: true
+      }
     },
     plotOptions: {
       bar: {
@@ -223,22 +209,35 @@ const FinancialReports = () => {
         endingShape: 'rounded'
       },
     },
-    dataLabels: { enabled: false },
-    stroke: { show: true, width: 2, colors: ['transparent'] },
+    dataLabels: {
+      enabled: false
+    },
+    stroke: {
+      show: true,
+      width: 2,
+      colors: ['transparent']
+    },
     xaxis: {
-      categories: reportType === 'PROFIT_LOSS' ? ['Revenue', 'COGS', 'Gross Profit', 'Expenses', 'Net Profit'] : 
-                 reportType === 'SALES' ? ['Total Sales', 'Gross Profit', 'Net Profit'] :
-                 ['Value'],
+      categories: ['Revenue', 'Costs', 'Profit'],
     },
     yaxis: {
-      title: { text: 'KES' },
+      title: {
+        text: 'KES'
+      },
       labels: {
         formatter: function(value) {
-          return formatCurrency(value);
+          return new Intl.NumberFormat('en-KE', {
+            style: 'currency',
+            currency: 'KES',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+          }).format(value);
         }
       }
     },
-    fill: { opacity: 1 },
+    fill: {
+      opacity: 1
+    },
     tooltip: {
       y: {
         formatter: function(val) {
@@ -252,337 +251,9 @@ const FinancialReports = () => {
   const chartSeries = reportData ? [
     {
       name: 'Amount',
-      data: reportType === 'PROFIT_LOSS' ? [
-        reportData.totalRevenue || 0,
-        reportData.totalCost || 0,
-        reportData.grossProfit || 0,
-        reportData.expenses || 0,
-        reportData.netProfit || 0
-      ] : reportType === 'SALES' ? [
-        reportData.reduce((sum, item) => sum + (item.totalSales || 0), 0),
-        reportData.reduce((sum, item) => sum + (item.grossProfit || 0), 0),
-        reportData.reduce((sum, item) => sum + (item.netProfit || 0), 0)
-      ] : [0]
+      data: [reportData.totalRevenue, reportData.totalCosts, reportData.netProfit]
     }
   ] : [];
-
-  const renderProfitLossReport = () => (
-    <Box id="report-content">
-      <Paper sx={{ p: 3, borderRadius: 2, boxShadow: theme.shadows[3], background: theme.palette.background.paper, mb: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h5" sx={{ fontWeight: 600 }}>
-            Income Statement
-          </Typography>
-          <Chip 
-            label={`${format(new Date(startDate), 'MMM d, yyyy')} - ${format(new Date(endDate), 'MMM d, yyyy')}`}
-            color="primary"
-            variant="outlined"
-            sx={{ fontWeight: 500 }}
-          />
-        </Box>
-        
-        <Divider sx={{ my: 2 }} />
-        
-        <TableContainer component={Paper} sx={{ mt: 2, borderRadius: 2 }}>
-          <Table>
-            <TableHead>
-              <TableRow sx={{ backgroundColor: theme.palette.grey[100] }}>
-                <TableCell sx={{ fontWeight: 600 }}>Description</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 600 }}>Amount</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 600 }} colSpan={2}>Revenue</TableCell>
-              </TableRow>
-              <TableRow hover>
-                <TableCell>Gross Sales</TableCell>
-                <TableCell align="right">{formatCurrency(reportData.totalRevenue)}</TableCell>
-              </TableRow>
-              <TableRow hover>
-                <TableCell>Returns & Allowances</TableCell>
-                <TableCell align="right">{formatCurrency(0)}</TableCell>
-              </TableRow>
-              <TableRow sx={{ backgroundColor: theme.palette.grey[50] }}>
-                <TableCell sx={{ fontWeight: 600 }}>Net Sales</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 600 }}>{formatCurrency(reportData.totalRevenue)}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 600 }} colSpan={2}>Cost of Goods Sold</TableCell>
-              </TableRow>
-              <TableRow hover>
-                <TableCell>Beginning Inventory</TableCell>
-                <TableCell align="right">{formatCurrency(0)}</TableCell>
-              </TableRow>
-              <TableRow hover>
-                <TableCell>Purchases</TableCell>
-                <TableCell align="right">{formatCurrency(reportData.totalCost)}</TableCell>
-              </TableRow>
-              <TableRow hover>
-                <TableCell>Ending Inventory</TableCell>
-                <TableCell align="right">{formatCurrency(0)}</TableCell>
-              </TableRow>
-              <TableRow sx={{ backgroundColor: theme.palette.grey[50] }}>
-                <TableCell sx={{ fontWeight: 600 }}>Total COGS</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 600 }}>{formatCurrency(reportData.totalCost)}</TableCell>
-              </TableRow>
-              <TableRow sx={{ backgroundColor: theme.palette.grey[50] }}>
-                <TableCell sx={{ fontWeight: 600 }}>Gross Profit</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 600 }}>{formatCurrency(reportData.grossProfit)}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 600 }} colSpan={2}>Operating Expenses</TableCell>
-              </TableRow>
-              <TableRow hover>
-                <TableCell>Total Operating Expenses</TableCell>
-                <TableCell align="right">{formatCurrency(reportData.expenses)}</TableCell>
-              </TableRow>
-              <TableRow sx={{ backgroundColor: theme.palette.grey[50] }}>
-                <TableCell sx={{ fontWeight: 600 }}>Operating Income</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 600 }}>
-                  {formatCurrency(reportData.grossProfit - reportData.expenses)}
-                </TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 600 }} colSpan={2}>Other Income & Expenses</TableCell>
-              </TableRow>
-              <TableRow hover>
-                <TableCell>Other Income</TableCell>
-                <TableCell align="right">{formatCurrency(reportData.otherIncome)}</TableCell>
-              </TableRow>
-              <TableRow hover>
-                <TableCell>Other Expenses</TableCell>
-                <TableCell align="right">{formatCurrency(reportData.otherExpenses)}</TableCell>
-              </TableRow>
-              <TableRow hover>
-                <TableCell>Taxes</TableCell>
-                <TableCell align="right">{formatCurrency(0)}</TableCell>
-              </TableRow>
-              <TableRow sx={{ backgroundColor: theme.palette.grey[50] }}>
-                <TableCell sx={{ fontWeight: 600 }}>Net Income</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 600 }}>{formatCurrency(reportData.netProfit)}</TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Paper>
-    </Box>
-  );
-
-  const renderSalesReport = () => (
-    <Box id="report-content">
-      <Paper sx={{ p: 3, borderRadius: 2, boxShadow: theme.shadows[3], background: theme.palette.background.paper, mb: 3 }}>
-        <Typography variant="h5" sx={{ fontWeight: 600, mb: 2 }}>
-          Sales Report
-        </Typography>
-        <Divider sx={{ mb: 3 }} />
-        <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
-          <Table>
-            <TableHead>
-              <TableRow sx={{ backgroundColor: theme.palette.grey[100] }}>
-                <TableCell sx={{ fontWeight: 600 }}>Date</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 600 }}>Orders</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 600 }}>Total Sales</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 600 }}>Gross Profit</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 600 }}>Net Profit</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {reportData.map((item, index) => (
-                <TableRow hover key={index}>
-                  <TableCell>{format(new Date(item.date), 'MMM d, yyyy')}</TableCell>
-                  <TableCell align="right">{item.orderCount}</TableCell>
-                  <TableCell align="right">{formatCurrency(item.totalSales)}</TableCell>
-                  <TableCell align="right">{formatCurrency(item.grossProfit)}</TableCell>
-                  <TableCell align="right">{formatCurrency(item.netProfit)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Paper>
-    </Box>
-  );
-
-  const renderProductPerformanceReport = () => (
-    <Box id="report-content">
-      <Paper sx={{ p: 3, borderRadius: 2, boxShadow: theme.shadows[3], background: theme.palette.background.paper, mb: 3 }}>
-        <Typography variant="h5" sx={{ fontWebg: 600, mb: 2 }}>
-          Product Performance Report
-        </Typography>
-        <Divider sx={{ mb: 3 }} />
-        <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
-          <Table>
-            <TableHead>
-              <TableRow sx={{ backgroundColor: theme.palette.grey[100] }}>
-                <TableCell sx={{ fontWeight: 600 }}>Product</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 600 }}>Category</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 600 }}>Units Sold</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 600 }}>Revenue</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 600 }}>Profit</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 600 }}>Margin</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {reportData.map((product, index) => (
-                <TableRow hover key={index}>
-                  <TableCell>{product.productName}</TableCell>
-                  <TableCell align="right">{product.categoryName}</TableCell>
-                  <TableCell align="right">{product.unitsSold}</TableCell>
-                  <TableCell align="right">{formatCurrency(product.totalRevenue)}</TableCell>
-                  <TableCell align="right" sx={{ 
-                    color: product.grossProfit >= 0 ? theme.palette.success.main : theme.palette.error.main,
-                    fontWeight: 500
-                  }}>
-                    {formatCurrency(Math.abs(product.grossProfit))}
-                  </TableCell>
-                  <TableCell align="right" sx={{ 
-                    color: product.grossProfit >= 0 ? theme.palette.success.main : theme.palette.error.main,
-                    fontWeight: 500
-                  }}>
-                    {(product.profitMargin * 100 || 0).toFixed(2)}%
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Paper>
-    </Box>
-  );
-
-  const renderInventoryValuationReport = () => (
-    <Box id="report-content">
-      <Paper sx={{ p: 3, borderRadius: 2, boxShadow: theme.shadows[3], background: theme.palette.background.paper, mb: 3 }}>
-        <Typography variant="h5" sx={{ fontWeight: 600, mb: 2 }}>
-          Inventory Valuation Report
-        </Typography>
-        <Divider sx={{ mb: 3 }} />
-        <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
-          <Table>
-            <TableHead>
-              <TableRow sx={{ backgroundColor: theme.palette.grey[100] }}>
-                <TableCell sx={{ fontWeight: 600 }}>Product</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 600 }}>Quantity</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 600 }}>Unit Cost</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 600 }}>Total Value</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 600 }}>Turnover</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {reportData.map((item, index) => (
-                <TableRow hover key={index}>
-                  <TableCell>{item.productName}</TableCell>
-                  <TableCell align="right">{item.quantity}</TableCell>
-                  <TableCell align="right">{formatCurrency(item.unitCost)}</TableCell>
-                  <TableCell align="right">{formatCurrency(item.totalValue)}</TableCell>
-                  <TableCell align="right">{(item.inventoryTurnover || 0).toFixed(2)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Paper>
-    </Box>
-  );
-
-  const renderSupplierPurchaseReport = () => (
-    <Box id="report-content">
-      <Paper sx={{ p: 3, borderRadius: 2, boxShadow: theme.shadows[3], background: theme.palette.background.paper, mb: 3 }}>
-        <Typography variant="h5" sx={{ fontWeight: 600, mb: 2 }}>
-          Supplier Purchase Report
-        </Typography>
-        <Divider sx={{ mb: 3 }} />
-        <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
-          <Table>
-            <TableHead>
-              <TableRow sx={{ backgroundColor: theme.palette.grey[100] }}>
-                <TableCell sx={{ fontWeight: 600 }}>Supplier</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 600 }}>Purchase Count</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 600 }}>Total Spent</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 600 }}>Avg. Order Value</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {reportData.map((item, index) => (
-                <TableRow hover key={index}>
-                  <TableCell>{item.supplierName}</TableCell>
-                  <TableCell align="right">{item.purchaseCount}</TableCell>
-                  <TableCell align="right">{formatCurrency(item.totalSpent)}</TableCell>
-                  <TableCell align="right">{formatCurrency(item.averageOrderValue)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Paper>
-    </Box>
-  );
-
-  const renderDailySummaryReport = () => (
-    <Box id="report-content">
-      <Paper sx={{ p: 3, borderRadius: 2, boxShadow: theme.shadows[3], background: theme.palette.background.paper, mb: 3 }}>
-        <Typography variant="h5" sx={{ fontWeight: 600, mb: 2 }}>
-          Daily Summary Report
-        </Typography>
-        <Divider sx={{ mb: 3 }} />
-        <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
-          <Table>
-            <TableHead>
-              <TableRow sx={{ backgroundColor: theme.palette.grey[100] }}>
-                <TableCell sx={{ fontWeight: 600 }}>Metric</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 600 }}>Value</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              <TableRow hover>
-                <TableCell>Total Sales Count</TableCell>
-                <TableCell align="right">{reportData.totalSalesCount}</TableCell>
-              </TableRow>
-              <TableRow hover>
-                <TableCell>Total Revenue</TableCell>
-                <TableCell align="right">{formatCurrency(reportData.totalRevenue)}</TableCell>
-              </TableRow>
-              <TableRow hover>
-                <TableCell>Total Expenses</TableCell>
-                <TableCell align="right">{formatCurrency(reportData.totalExpenses)}</TableCell>
-              </TableRow>
-              <TableRow hover>
-                <TableCell>Net Profit</TableCell>
-                <TableCell align="right">{formatCurrency(reportData.netProfit)}</TableCell>
-              </TableRow>
-              <TableRow hover>
-                <TableCell>Low Stock Items</TableCell>
-                <TableCell align="right">{reportData.lowStockItemsCount}</TableCell>
-              </TableRow>
-              <TableRow hover>
-                <TableCell>Inventory Value</TableCell>
-                <TableCell align="right">{formatCurrency(reportData.inventoryValue)}</TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Paper>
-    </Box>
-  );
-
-  const handleShareReport = async () => {
-    try {
-      const blob = await exportReport({
-        reportType: reportType,
-        startDate,
-        endDate,
-        format: 'PDF'
-      });
-      // Implement actual email sending logic here
-      console.log('Sharing report to:', shareEmail, 'with message:', shareMessage);
-      setShareDialogOpen(false);
-      setShareEmail('');
-      setShareMessage('');
-    } catch (err) {
-      setError('Failed to share report');
-    }
-  };
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
@@ -660,22 +331,6 @@ const FinancialReports = () => {
         >
           <form onSubmit={handleDateSubmit}>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
-              <FormControl fullWidth sx={{ maxWidth: 200 }}>
-                <InputLabel id="report-type-label">Report Type</InputLabel>
-                <Select
-                  labelId="report-type-label"
-                  value={reportType}
-                  label="Report Type"
-                  onChange={(e) => setReportType(e.target.value)}
-                >
-                  <MenuItem value="PROFIT_LOSS">Income Statement</MenuItem>
-                  <MenuItem value="SALES">Sales Report</MenuItem>
-                  <MenuItem value="PRODUCTS">Product Performance</MenuItem>
-                  <MenuItem value="INVENTORY">Inventory Valuation</MenuItem>
-                  <MenuItem value="SUPPLIERS">Supplier Purchases</MenuItem>
-                  <MenuItem value="DAILY_SUMMARY">Daily Summary</MenuItem>
-                </Select>
-              </FormControl>
               <DatePicker
                 label="Start Date"
                 value={startDate}
@@ -803,23 +458,201 @@ const FinancialReports = () => {
               No Data Available
             </Typography>
             <Typography>
-              There are no records for the selected date range ({format(new Date(startDate), 'MMM d, yyyy')} - {format(new Date(endDate), 'MMM d, yyyy')}).
-              Please try a different date range or report type.
+              There are no sales records for the selected date range ({format(new Date(startDate), 'MMM d, yyyy')} - {format(new Date(endDate), 'MMM d, yyyy')}).
+              Please try a different date range.
             </Typography>
           </Alert>
         )}
 
         {reportData && !loading && (
-          <>
-            {reportType === 'PROFIT_LOSS' && renderProfitLossReport()}
-            {reportType === 'SALES' && renderSalesReport()}
-            {reportType === 'PRODUCTS' && renderProductPerformanceReport()}
-            {reportType === 'INVENTORY' && renderInventoryValuationReport()}
-            {reportType === 'SUPPLIERS' && renderSupplierPurchaseReport()}
-            {reportType === 'DAILY_SUMMARY' && renderDailySummaryReport()}
-          </>
+          <Box id="report-content">
+            <Paper 
+              sx={{ 
+                p: 3,
+                borderRadius: 2,
+                boxShadow: theme.shadows[3],
+                background: theme.palette.background.paper,
+                mb: 3
+              }}
+            >
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                  Profit & Loss Summary
+                </Typography>
+                <Chip 
+                  label={`${format(new Date(startDate), 'MMM d, yyyy')} - ${format(new Date(endDate), 'MMM d, yyyy')}`}
+                  color="primary"
+                  variant="outlined"
+                  sx={{ fontWeight: 500 }}
+                />
+              </Box>
+              
+              <Divider sx={{ my: 2 }} />
+              
+              <TableContainer component={Paper} sx={{ mt: 2, borderRadius: 2 }}>
+                <Table>
+                  <TableHead>
+                    <TableRow sx={{ backgroundColor: theme.palette.grey[100] }}>
+                      <TableCell sx={{ fontWeight: 600 }}>Metric</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 600 }}>Amount</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    <TableRow hover>
+                      <TableCell>Total Revenue</TableCell>
+                      <TableCell align="right">
+                        {formatCurrency(reportData.totalRevenue)}
+                      </TableCell>
+                    </TableRow>
+                    <TableRow hover>
+                      <TableCell>Total Costs</TableCell>
+                      <TableCell align="right">
+                        {formatCurrency(reportData.totalCosts)}
+                      </TableCell>
+                    </TableRow>
+                    <TableRow 
+                      sx={{ 
+                        '&:last-child td, &:last-child th': { border: 0 },
+                        backgroundColor: theme.palette.grey[50]
+                      }}
+                    >
+                      <TableCell sx={{ fontWeight: 600 }}>
+                        Net Profit
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 600 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+                          {formatCurrency(reportData.netProfit)}
+                          <Chip
+                            label={`${((reportData.netProfit / reportData.totalRevenue) * 100 || 0).toFixed(2)}%`}
+                            size="small"
+                            sx={{ 
+                              ml: 1,
+                              backgroundColor: reportData.netProfit >= 0 ? 
+                                theme.palette.success.light : 
+                                theme.palette.error.light,
+                              color: reportData.netProfit >= 0 ? 
+                                theme.palette.success.dark : 
+                                theme.palette.error.dark,
+                              fontWeight: 600
+                            }}
+                          />
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Paper>
+
+            {reportData.categoryBreakdown?.length > 0 && (
+              <Paper sx={{ p: 3, borderRadius: 2, boxShadow: theme.shadows[3], mb: 3 }}>
+                <Typography variant="h5" sx={{ fontWeight: 600, mb: 2 }}>
+                  Category Performance
+                </Typography>
+                <Divider sx={{ mb: 3 }} />
+                <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
+                  <Table>
+                    <TableHead>
+                      <TableRow sx={{ backgroundColor: theme.palette.grey[100] }}>
+                        <TableCell sx={{ fontWeight: 600 }}>Category</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 600 }}>Revenue</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 600 }}>Costs</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 600 }}>Profit</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 600 }}>Margin</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {reportData.categoryBreakdown.map((category) => (
+                        <TableRow hover key={category.categoryId || category.categoryName}>
+                          <TableCell>{category.categoryName}</TableCell>
+                          <TableCell align="right">{formatCurrency(category.revenue)}</TableCell>
+                          <TableCell align="right">{formatCurrency(category.costs)}</TableCell>
+                          <TableCell 
+                            align="right"
+                            sx={{ 
+                              color: category.profit >= 0 ? 
+                                theme.palette.success.main : 
+                                theme.palette.error.main,
+                              fontWeight: 500
+                            }}
+                          >
+                            {formatCurrency(Math.abs(category.profit))}
+                          </TableCell>
+                          <TableCell 
+                            align="right"
+                            sx={{ 
+                              color: category.profit >= 0 ? 
+                                theme.palette.success.main : 
+                                theme.palette.error.main,
+                              fontWeight: 500
+                            }}
+                          >
+                            {((category.profit / category.revenue) * 100 || 0).toFixed(2)}%
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Paper>
+            )}
+
+            {reportData.topPerformingProducts?.length > 0 && (
+              <Paper sx={{ p: 3, borderRadius: 2, boxShadow: theme.shadows[3] }}>
+                <Typography variant="h5" sx={{ fontWeight: 600, mb: 2 }}>
+                  Top Selling Products
+                </Typography>
+                <Divider sx={{ mb: 3 }} />
+                <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
+                  <Table>
+                    <TableHead>
+                      <TableRow sx={{ backgroundColor: theme.palette.grey[100] }}>
+                        <TableCell sx={{ fontWeight: 600 }}>Product</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 600 }}>Revenue</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 600 }}>Profit</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 600 }}>Units Sold</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 600 }}>Margin</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {reportData.topPerformingProducts.map((product) => (
+                        <TableRow hover key={product.productId}>
+                          <TableCell>{product.productName}</TableCell>
+                          <TableCell align="right">{formatCurrency(product.revenue)}</TableCell>
+                          <TableCell 
+                            align="right"
+                            sx={{ 
+                              color: product.profit >= 0 ? 
+                                theme.palette.success.main : 
+                                theme.palette.error.main,
+                              fontWeight: 500
+                            }}
+                          >
+                            {formatCurrency(Math.abs(product.profit))}
+                          </TableCell>
+                          <TableCell align="right">{product.quantitySold}</TableCell>
+                          <TableCell 
+                            align="right"
+                            sx={{ 
+                              color: product.profit >= 0 ? 
+                                theme.palette.success.main : 
+                                theme.palette.error.main,
+                              fontWeight: 500
+                            }}
+                          >
+                            {((product.profit / product.revenue) * 100 || 0).toFixed(2)}%
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Paper>
+            )}
+          </Box>
         )}
 
+        {/* Chart Dialog */}
         <Dialog
           open={chartDialogOpen}
           onClose={() => setChartDialogOpen(false)}
@@ -844,6 +677,7 @@ const FinancialReports = () => {
           </DialogActions>
         </Dialog>
 
+        {/* Share Dialog */}
         <Dialog
           open={shareDialogOpen}
           onClose={() => setShareDialogOpen(false)}
@@ -858,8 +692,6 @@ const FinancialReports = () => {
               fullWidth
               label="Email Address"
               variant="outlined"
-              value={shareEmail}
-              onChange={(e) => setShareEmail(e.target.value)}
               sx={{ mb: 2 }}
             />
             <TextField
@@ -868,8 +700,6 @@ const FinancialReports = () => {
               variant="outlined"
               multiline
               rows={4}
-              value={shareMessage}
-              onChange={(e) => setShareMessage(e.target.value)}
             />
           </DialogContent>
           <DialogActions>
@@ -877,10 +707,9 @@ const FinancialReports = () => {
               Cancel
             </Button>
             <Button 
-              onClick={handleShareReport} 
+              onClick={() => setShareDialogOpen(false)} 
               variant="contained" 
               color="primary"
-              disabled={!shareEmail}
             >
               Send Report
             </Button>
