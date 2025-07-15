@@ -4,7 +4,6 @@ import { Download } from 'lucide-react';
 import dayjs from 'dayjs';
 import { getAllProducts } from '../../services/productServices';
 import { getCategories } from '../../services/productServices';
-import { getProfitLossReport } from '../../services/profitService';
 import { getSalesByDateRange } from '../../services/salesService';
 
 const ProductPerformanceReport = () => {
@@ -34,7 +33,7 @@ const ProductPerformanceReport = () => {
 
   // Format percentage
   const formatPercentage = (value) => {
-    return `${Math.round((value || 0) * 100) / 100}%`;
+    return `${(Math.round((value || 0) * 10000) / 100).toFixed(2)}%`;
   };
 
   // Columns configuration
@@ -128,6 +127,11 @@ const ProductPerformanceReport = () => {
       return;
     }
 
+    if (startDate.isAfter(endDate)) {
+      message.warning('Start date cannot be after end date');
+      return;
+    }
+
     setLoading(true);
     try {
       // Fetch all necessary data in parallel
@@ -137,15 +141,13 @@ const ProductPerformanceReport = () => {
         getSalesByDateRange(startDate.toDate(), endDate.toDate())
       ]);
 
-      console.log('API Responses:', { categoriesData, products, salesData });
-
       // Set categories
       setCategories(categoriesData || []);
 
       // Process the sales data to get units sold per product
       const productSalesMap = {};
-      salesData.forEach(sale => {
-        sale.items.forEach(item => {
+      (salesData || []).forEach(sale => {
+        (sale.items || []).forEach(item => {
           if (!productSalesMap[item.productId]) {
             productSalesMap[item.productId] = 0;
           }
@@ -167,7 +169,7 @@ const ProductPerformanceReport = () => {
           const profitMargin = revenue > 0 ? (profit / revenue) : 0;
 
           // Find category name from categories data
-          const productCategory = categoriesData?.find(
+          const productCategory = (categoriesData || []).find(
             cat => cat.id === (product.categoryId || product.category_id)
           );
           
@@ -193,7 +195,7 @@ const ProductPerformanceReport = () => {
         const totalRevenue = processedData.reduce((sum, item) => sum + (item.revenue || 0), 0);
         const totalCosts = processedData.reduce((sum, item) => sum + (item.cost || 0), 0);
         const totalProfit = totalRevenue - totalCosts;
-        const avgProfitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+        const avgProfitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) : 0;
 
         setSummaryData({
           totalProducts: processedData.length,
@@ -228,7 +230,7 @@ const ProductPerformanceReport = () => {
       const rows = data.map(item => 
         columns.map(col => {
           const value = item[col.dataIndex];
-          if (col.dataIndex === 'profitMargin') return formatPercentage(value);
+          if (col.dataIndex === 'profitMargin') return formatPercentage(value).replace('%', '');
           if (['costPrice', 'sellingPrice', 'revenue', 'profit'].includes(col.dataIndex)) {
             return formatCurrency(value).replace(/[^\d.,-]/g, '');
           }
@@ -284,6 +286,7 @@ const ProductPerformanceReport = () => {
             onChange={setStartDate}
             className="w-full md:w-48"
             format="YYYY-MM-DD"
+            disabledDate={(current) => current && current > dayjs().endOf('day')}
           />
           <DatePicker
             placeholder="End Date"
@@ -291,6 +294,7 @@ const ProductPerformanceReport = () => {
             onChange={setEndDate}
             className="w-full md:w-48"
             format="YYYY-MM-DD"
+            disabledDate={(current) => current && current > dayjs().endOf('day')}
           />
           <Button 
             type="primary" 
@@ -319,6 +323,15 @@ const ProductPerformanceReport = () => {
               title="Total Revenue" 
               value={formatCurrency(summaryData.totalRevenue)} 
               valueStyle={{ fontSize: '16px', fontWeight: 'bold', color: '#16a34a' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={6}>
+          <Card>
+            <Statistic 
+              title="Total Costs" 
+              value={formatCurrency(summaryData.totalCosts)} 
+              valueStyle={{ fontSize: '16px', fontWeight: 'bold', color: '#dc2626' }}
             />
           </Card>
         </Col>
