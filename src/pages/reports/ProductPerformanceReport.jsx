@@ -120,142 +120,118 @@ const ProductPerformanceReport = () => {
     },
   ], []);
 
-  // Fetch product performance report
-  const fetchProductReport = async () => {
-    if (!startDate || !endDate) {
-      message.warning('Please select both start and end dates');
-      return;
-    }
 
-    if (startDate.isAfter(endDate)) {
-      message.warning('Start date cannot be after end date');
-      return;
-    }
 
-    setLoading(true);
-    try {
-      // Fetch all necessary data in parallel
-      const [categoriesData, products, salesData] = await Promise.all([
-        getCategories(),
-        getAllProducts(),
-        getSalesByDateRange(startDate.toDate(), endDate.toDate())
-      ]);
 
-      // Set categories
-      setCategories(categoriesData || []);
 
-      // Process the sales data to get units sold per product
-      const productSalesMap = {};
-      (salesData || []).forEach(sale => {
-        (sale.items || []).forEach(item => {
-          if (!productSalesMap[item.productId]) {
-            productSalesMap[item.productId] = 0;
-          }
-          productSalesMap[item.productId] += item.quantity;
-        });
+
+
+
+
+
+const fetchProductReport = async () => {
+  if (!startDate || !endDate) {
+    message.warning('Please select both start and end dates');
+    return;
+  }
+
+  if (startDate.isAfter(endDate)) {
+    message.warning('Start date cannot be after end date');
+    return;
+  }
+
+  setLoading(true);
+  try {
+    const [categoriesData, products, salesData] = await Promise.all([
+      getCategories(),
+      getAllProducts(),
+      getSalesByDateRange(startDate.format('YYYY-MM-DD'), endDate.format('YYYY-MM-DD'))
+    ]);
+
+    console.log('Fetched Categories:', categoriesData);
+    console.log('Fetched Products:', products);
+    console.log('Fetched Sales:', salesData);
+
+    setCategories(categoriesData || []);
+
+    const productSalesMap = {};
+
+    (salesData || []).forEach(sale => {
+      (sale.items || []).forEach(item => {
+        const productId = String(item.productId || item.product_id);
+        if (!productId) return;
+        productSalesMap[productId] = (productSalesMap[productId] || 0) + item.quantity;
+      });
+    });
+
+    console.log('Computed Product Sales Map:', productSalesMap);
+
+    if (Array.isArray(products)) {
+      const processedData = products.map(product => {
+        const productId = String(product.id);
+        const unitsSold = productSalesMap[productId] || 0;
+        const sellingPrice = Number(product.price) || 0;
+        const costPrice = Number(product.costPrice || product.cost_price) || 0;
+
+        const revenue = unitsSold * sellingPrice;
+        const cost = unitsSold * costPrice;
+        const profit = revenue - cost;
+        const profitMargin = revenue > 0 ? profit / revenue : 0;
+
+        const productCategory = (categoriesData || []).find(
+          cat => cat.id === (product.categoryId || product.category_id)
+        );
+        const categoryName = productCategory?.name || product.category?.name || null;
+
+        return {
+          productId: product.id,
+          productName: product.name || `Product ${product.id}`,
+          categoryName,
+          costPrice,
+          sellingPrice,
+          unitsSold,
+          revenue,
+          cost,
+          profit,
+          profitMargin
+        };
       });
 
-      // Process the products data
-      if (Array.isArray(products)) {
-        const processedData = products.map(product => {
-          const unitsSold = productSalesMap[product.id] || 0;
-          const sellingPrice = Number(product.price) || 0;
-          const costPrice = Number(product.costPrice || product.cost_price) || 0;
-          
-          // Calculate financial metrics
-          const revenue = unitsSold * sellingPrice;
-          const cost = unitsSold * costPrice;
-          const profit = revenue - cost;
-          const profitMargin = revenue > 0 ? (profit / revenue) : 0;
+      console.log('Processed Report Data:', processedData);
 
-          // Find category name from categories data
-          const productCategory = (categoriesData || []).find(
-            cat => cat.id === (product.categoryId || product.category_id)
-          );
-          
-          const categoryName = productCategory?.name || product.category?.name || null;
+      setData(processedData);
 
-          return {
-            productId: product.id,
-            productName: product.name || `Product ${product.id}`,
-            categoryName,
-            costPrice,
-            sellingPrice,
-            unitsSold,
-            revenue,
-            cost,
-            profit,
-            profitMargin
-          };
-        });
+      const totalRevenue = processedData.reduce((sum, item) => sum + (item.revenue || 0), 0);
+      const totalCosts = processedData.reduce((sum, item) => sum + (item.cost || 0), 0);
+      const totalProfit = totalRevenue - totalCosts;
+      const avgProfitMargin = totalRevenue > 0 ? totalProfit / totalRevenue : 0;
 
-        setData(processedData);
-        
-        // Calculate summary statistics
-        const totalRevenue = processedData.reduce((sum, item) => sum + (item.revenue || 0), 0);
-        const totalCosts = processedData.reduce((sum, item) => sum + (item.cost || 0), 0);
-        const totalProfit = totalRevenue - totalCosts;
-        const avgProfitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) : 0;
-
-        setSummaryData({
-          totalProducts: processedData.length,
-          totalRevenue,
-          totalCosts,
-          totalProfit,
-          avgProfitMargin
-        });
-      } else {
-        message.error('No product data available');
-        setData([]);
-      }
-    } catch (error) {
-      console.error('Error fetching product report:', error);
-      message.error(error.message || 'Failed to fetch product performance data');
+      setSummaryData({
+        totalProducts: processedData.length,
+        totalRevenue,
+        totalCosts,
+        totalProfit,
+        avgProfitMargin
+      });
+    } else {
+      message.error('No product data available');
       setData([]);
-    } finally {
-      setLoading(false);
     }
-  };
+  } catch (error) {
+    console.error('Error fetching product report:', error);
+    message.error(error.message || 'Failed to fetch product performance data');
+    setData([]);
+  } finally {
+    setLoading(false);
+  }
+};
 
-  // Export report
-  const handleExport = async () => {
-    if (data.length === 0) {
-      message.warning('No data to export');
-      return;
-    }
 
-    setExportLoading(true);
-    try {
-      const headers = columns.map(col => col.title).join(',');
-      const rows = data.map(item => 
-        columns.map(col => {
-          const value = item[col.dataIndex];
-          if (col.dataIndex === 'profitMargin') return formatPercentage(value).replace('%', '');
-          if (['costPrice', 'sellingPrice', 'revenue', 'profit'].includes(col.dataIndex)) {
-            return formatCurrency(value).replace(/[^\d.,-]/g, '');
-          }
-          return `"${value || ''}"`;
-        }).join(',')
-      ).join('\n');
 
-      const csvContent = `${headers}\n${rows}`;
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `product-performance-${dayjs().format('YYYY-MM-DD')}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
 
-      message.success('Report exported successfully');
-    } catch (error) {
-      console.error('Error exporting report:', error);
-      message.error('Failed to export report');
-    } finally {
-      setExportLoading(false);
-    }
-  };
+
+
+
 
   useEffect(() => {
     fetchProductReport();
