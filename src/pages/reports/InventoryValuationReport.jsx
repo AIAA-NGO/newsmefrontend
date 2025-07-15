@@ -5,13 +5,10 @@ import { InventoryService } from '../../services/InventoryService';
 import { getAllProducts } from '../../services/productServices';
 import { getAllCategories } from '../../services/categories';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
-
 const InventoryValuationReport = () => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
-  const [categories, setCategories] = useState([]);
   const [summaryData, setSummaryData] = useState({
     totalValue: 0,
     totalItems: 0,
@@ -113,8 +110,7 @@ const InventoryValuationReport = () => {
   const fetchCategories = async () => {
     try {
       const categoriesData = await getAllCategories();
-      setCategories(categoriesData);
-      return categoriesData;
+      return Array.isArray(categoriesData) ? categoriesData : [];
     } catch (error) {
       console.error('Error fetching categories:', error);
       message.error('Failed to load categories');
@@ -137,40 +133,44 @@ const InventoryValuationReport = () => {
         getAllProducts()
       ]);
 
-      // Get inventory status for all products at once if possible
+      // Get inventory status - now properly handled to return an array
       const inventoryStatus = await InventoryService.getInventoryStatus();
       
+      // Process data with proper error handling
       const processedData = products.map(product => {
-        // Find inventory item for this product
-        const inventoryItem = Array.isArray(inventoryStatus) 
-          ? inventoryStatus.find(item => item.productId === product.id) 
-          : null;
-
-        // Use inventory quantity if available, otherwise fall back to product quantity
-        const currentStock = inventoryItem?.quantity ?? product.quantityInStock ?? 0;
-        const reorderLevel = product.lowStockThreshold || 0;
-        const unitCost = product.costPrice || 0;
-        const totalValue = unitCost * currentStock;
-        const stockStatus = getStockStatus(currentStock, reorderLevel);
-        
-        // Find category name
-        const productCategory = categoriesData.find(cat => cat.id === product.categoryId);
-        const categoryName = productCategory?.name || product.category?.name || 'Uncategorized';
-        
-        return {
-          ...product,
-          ...inventoryItem,
-          id: product.id,
-          sku: product.sku,
-          name: product.name,
-          currentStock,
-          totalValue,
-          stockStatus,
-          categoryName,
-          costPrice: unitCost,
-          lowStockThreshold: reorderLevel
-        };
-      });
+        try {
+          // Find inventory item for this product
+          const inventoryItem = inventoryStatus.find(item => item?.productId === product?.id) || {};
+          
+          // Safely get all values with defaults
+          const currentStock = inventoryItem?.quantity ?? product?.quantityInStock ?? 0;
+          const reorderLevel = product?.lowStockThreshold || 0;
+          const unitCost = product?.costPrice || 0;
+          const totalValue = unitCost * currentStock;
+          const stockStatus = getStockStatus(currentStock, reorderLevel);
+          
+          // Find category name
+          const productCategory = categoriesData.find(cat => cat?.id === product?.categoryId);
+          const categoryName = productCategory?.name || product?.category?.name || 'Uncategorized';
+          
+          return {
+            ...product,
+            ...inventoryItem,
+            id: product?.id,
+            sku: product?.sku || '',
+            name: product?.name || 'Unknown Product',
+            currentStock,
+            totalValue,
+            stockStatus,
+            categoryName,
+            costPrice: unitCost,
+            lowStockThreshold: reorderLevel
+          };
+        } catch (error) {
+          console.error('Error processing product:', product?.id, error);
+          return null;
+        }
+      }).filter(item => item !== null); // Remove any null items from processing errors
 
       setData(processedData);
       calculateSummary(processedData);
@@ -185,6 +185,11 @@ const InventoryValuationReport = () => {
   };
 
   const calculateSummary = (inventoryData) => {
+    if (!Array.isArray(inventoryData)) {
+      console.error('Invalid inventory data for summary calculation');
+      return;
+    }
+
     const totalValue = inventoryData.reduce((sum, item) => sum + (item.totalValue || 0), 0);
     const lowStockItems = inventoryData.filter(item => 
       item.stockStatus === 'LOW' || item.stockStatus === 'MEDIUM'
@@ -202,7 +207,9 @@ const InventoryValuationReport = () => {
   };
 
   const updateCategoryFilters = (inventoryData) => {
-    const uniqueCategories = [...new Set(inventoryData.map(item => item.categoryName))];
+    if (!Array.isArray(inventoryData)) return;
+    
+    const uniqueCategories = [...new Set(inventoryData.map(item => item.categoryName))].filter(Boolean);
     const categoryColumnIndex = columns.findIndex(col => col.key === 'category');
     if (categoryColumnIndex >= 0) {
       const updatedColumns = [...columns];
@@ -213,15 +220,19 @@ const InventoryValuationReport = () => {
           value: category
         }))
       };
-      // Note: In a real component, you would setColumns(updatedColumns) if columns were state
     }
   };
 
   const handleExport = async () => {
+    if (!Array.isArray(data) || data.length === 0) {
+      message.warning('No data available to export');
+      return;
+    }
+
     setExportLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/reports/export`, {
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/reports/export`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -231,14 +242,14 @@ const InventoryValuationReport = () => {
           reportType: 'INVENTORY',
           format: 'CSV',
           data: data.map(item => ({
-            sku: item.sku,
-            name: item.name,
-            category: item.categoryName,
-            currentStock: item.currentStock,
-            unitCost: item.costPrice,
-            totalValue: item.totalValue,
-            reorderLevel: item.lowStockThreshold,
-            status: item.stockStatus
+            sku: item.sku || '',
+            name: item.name || '',
+            category: item.categoryName || '',
+            currentStock: item.currentStock || 0,
+            unitCost: item.costPrice || 0,
+            totalValue: item.totalValue || 0,
+            reorderLevel: item.lowStockThreshold || 0,
+            status: item.stockStatus || ''
           }))
         })
       });
@@ -279,6 +290,7 @@ const InventoryValuationReport = () => {
           icon={<Download size={16} />} 
           onClick={handleExport}
           loading={exportLoading}
+          disabled={data.length === 0}
           className="bg-blue-600 hover:bg-blue-700 border-blue-600 text-white w-full md:w-auto"
         >
           <span className="hidden md:inline">Export Report</span>
@@ -343,6 +355,20 @@ const InventoryValuationReport = () => {
           }}
           size="small"
           className="responsive-table"
+          locale={{
+            emptyText: (
+              <div className="py-8 text-center">
+                <p className="text-gray-500">No inventory data available</p>
+                <Button 
+                  type="link" 
+                  onClick={fetchInventoryReport}
+                  loading={loading}
+                >
+                  Refresh Data
+                </Button>
+              </div>
+            )
+          }}
         />
       </Card>
     </div>
