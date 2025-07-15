@@ -45,16 +45,6 @@ apiClient.interceptors.response.use(
 );
 
 export const InventoryService = {
-  /**
-   * Gets inventory status with filtering and pagination
-   * @param {string} [search] - Search term
-   * @param {string} [categoryId] - Category ID filter
-   * @param {string} [brandId] - Brand ID filter
-   * @param {boolean} [lowStockOnly] - Only show low stock items
-   * @param {boolean} [expiredOnly] - Only show expired items
-   * @param {Object} [pageable] - Pagination options
-   * @returns {Promise<Array>} Array of inventory items
-   */
   async getInventoryStatus(search, categoryId, brandId, lowStockOnly, expiredOnly, pageable) {
     try {
       const params = {
@@ -67,7 +57,8 @@ export const InventoryService = {
       };
       
       const response = await apiClient.get('/inventory', { params });
-      return Array.isArray(response.data) ? response.data : [];
+      console.log('Inventory status response:', response.data); // Debug log
+      return Array.isArray(response.data.content) ? response.data.content : [];
     } catch (error) {
       console.error('Error fetching inventory:', {
         search,
@@ -80,14 +71,6 @@ export const InventoryService = {
     }
   },
 
-  /**
-   * Adjusts inventory levels
-   * @param {Object} request - Adjustment request
-   * @param {string} request.productId - Product ID
-   * @param {number} request.quantity - Adjustment quantity
-   * @param {string} request.reason - Reason for adjustment
-   * @returns {Promise<Object>} Updated inventory record
-   */
   async adjustInventory(request) {
     try {
       if (!request?.productId || typeof request.quantity !== 'number') {
@@ -106,10 +89,6 @@ export const InventoryService = {
     }
   },
 
-  /**
-   * Removes expired products from inventory
-   * @returns {Promise<Object>} Removal summary
-   */
   async removeExpiredProducts() {
     try {
       const response = await apiClient.post('/inventory/remove-expired');
@@ -123,11 +102,6 @@ export const InventoryService = {
     }
   },
 
-  /**
-   * Deletes a product
-   * @param {string} productId - Product ID to delete
-   * @returns {Promise<Object>} Deletion confirmation
-   */
   async deleteProduct(productId) {
     try {
       if (!productId) throw new Error('Product ID is required');
@@ -149,16 +123,12 @@ export const InventoryService = {
     }
   },
 
-  /**
-   * Gets adjustment history for a product
-   * @param {string} productId - Product ID
-   * @returns {Promise<Array>} Array of adjustment records
-   */
   async getAdjustmentHistory(productId) {
     try {
       if (!productId) throw new Error('Product ID is required');
       
       const response = await apiClient.get(`/inventory/adjustments/${productId}`);
+      console.log('Adjustment history response:', response.data); // Debug log
       return Array.isArray(response.data) ? response.data : [];
     } catch (error) {
       console.error('Error fetching adjustment history:', {
@@ -170,13 +140,10 @@ export const InventoryService = {
     }
   },
 
-  /**
-   * Gets low stock suggestions
-   * @returns {Promise<Array>} Array of products needing restock
-   */
   async getLowStockSuggestions() {
     try {
       const response = await apiClient.get('/inventory/low-stock-suggestions');
+      console.log('Low stock suggestions response:', response.data); // Debug log
       return Array.isArray(response.data) ? response.data : [];
     } catch (error) {
       console.error('Error fetching low stock suggestions:', {
@@ -187,19 +154,17 @@ export const InventoryService = {
     }
   },
 
-  /**
-   * Gets low stock items with detailed information
-   * @returns {Promise<Array>} Array of low stock items
-   */
   async getLowStockItems() {
     try {
       const response = await apiClient.get('/dashboard/low-stock');
+      console.log('Low stock items response:', response.data); // Debug log
       
       if (!response.data) {
         throw new Error('No data received from low stock endpoint');
       }
 
-      return (Array.isArray(response.data) ? response.data : [response.data]).map(item => ({
+      const data = Array.isArray(response.data) ? response.data : [response.data];
+      return data.map(item => ({
         id: item.productId || Math.random().toString(36).substr(2, 9),
         name: item.productName || 'Unknown Product',
         sku: item.sku || '',
@@ -222,13 +187,10 @@ export const InventoryService = {
     }
   },
 
-  /**
-   * Gets products that will expire soon
-   * @returns {Promise<Array>} Array of expiring products
-   */
   async getExpiringProducts() {
     try {
       const response = await apiClient.get('/products/expiring');
+      console.log('Expiring products response:', response.data); // Debug log
       return Array.isArray(response.data) ? response.data : [];
     } catch (error) {
       console.error('Error fetching expiring products:', {
@@ -239,11 +201,6 @@ export const InventoryService = {
     }
   },
 
-  /**
-   * Searches inventory products
-   * @param {string} query - Search query
-   * @returns {Promise<Array>} Array of matching products
-   */
   async searchProducts(query) {
     try {
       if (!query || typeof query !== 'string') {
@@ -253,6 +210,7 @@ export const InventoryService = {
       const response = await apiClient.get('/products/search', {
         params: { query: query.trim() }
       });
+      console.log('Search products response:', response.data); // Debug log
       return Array.isArray(response.data) ? response.data : [];
     } catch (error) {
       console.error('Error searching products:', {
@@ -264,13 +222,10 @@ export const InventoryService = {
     }
   },
 
-  /**
-   * Gets inventory valuation report
-   * @returns {Promise<Array>} Array of inventory valuation items
-   */
   async getInventoryValuation() {
     try {
       const response = await apiClient.get('/inventory/valuation');
+      console.log('Inventory valuation response:', response.data); // Debug log
       
       if (!Array.isArray(response.data)) {
         console.warn('Valuation data is not an array:', response.data);
@@ -290,22 +245,19 @@ export const InventoryService = {
     } catch (error) {
       console.error('Error fetching inventory valuation:', {
         error: error.message,
+        status: error.response?.status,
         response: error.response?.data
       });
       return [];
     }
   },
 
-  /**
-   * Gets detailed product information
-   * @param {string} productId - Product ID
-   * @returns {Promise<Object>} Product details
-   */
   async getProductDetails(productId) {
     try {
       if (!productId) throw new Error('Product ID is required');
       
       const response = await apiClient.get(`/products/${productId}`);
+      console.log('Product details response:', response.data); // Debug log
       return response.data || {};
     } catch (error) {
       console.error('Error fetching product details:', {
@@ -317,12 +269,6 @@ export const InventoryService = {
     }
   },
 
-  /**
-   * Updates product stock levels
-   * @param {string} productId - Product ID
-   * @param {number} quantity - New quantity
-   * @returns {Promise<Object>} Updated product record
-   */
   async updateProductStock(productId, quantity) {
     try {
       if (!productId || typeof quantity !== 'number') {
@@ -342,11 +288,6 @@ export const InventoryService = {
     }
   },
 
-  /**
-   * Bulk update inventory levels
-   * @param {Array} updates - Array of update objects
-   * @returns {Promise<Object>} Bulk update result
-   */
   async bulkUpdateInventory(updates) {
     try {
       if (!Array.isArray(updates)) {

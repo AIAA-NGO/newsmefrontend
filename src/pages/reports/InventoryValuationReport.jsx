@@ -110,6 +110,7 @@ const InventoryValuationReport = () => {
   const fetchCategories = async () => {
     try {
       const categoriesData = await getAllCategories();
+      console.log('Categories response:', categoriesData); // Debug log
       return Array.isArray(categoriesData) ? categoriesData : [];
     } catch (error) {
       console.error('Error fetching categories:', error);
@@ -128,28 +129,47 @@ const InventoryValuationReport = () => {
   const fetchInventoryReport = async () => {
     setLoading(true);
     try {
-      const [categoriesData, products] = await Promise.all([
+      const [categoriesData, products, inventoryStatus] = await Promise.all([
         fetchCategories(),
-        getAllProducts()
+        getAllProducts(),
+        InventoryService.getInventoryStatus()
       ]);
 
-      // Get inventory status - now properly handled to return an array
-      const inventoryStatus = await InventoryService.getInventoryStatus();
-      
-      // Process data with proper error handling
+      // Ensure products and inventoryStatus are arrays
+      if (!Array.isArray(products)) {
+        console.error('Products data is not an array:', products);
+        setData([]);
+        setSummaryData({
+          totalValue: 0,
+          totalItems: 0,
+          lowStockItems: 0,
+          outOfStockItems: 0
+        });
+        message.error('Failed to load products data');
+        return;
+      }
+
+      if (!Array.isArray(inventoryStatus)) {
+        console.error('Inventory status data is not an array:', inventoryStatus);
+        setData([]);
+        setSummaryData({
+          totalValue: 0,
+          totalItems: 0,
+          lowStockItems: 0,
+          outOfStockItems: 0
+        });
+        message.error('Failed to load inventory status');
+        return;
+      }
+
       const processedData = products.map(product => {
         try {
-          // Find inventory item for this product
           const inventoryItem = inventoryStatus.find(item => item?.productId === product?.id) || {};
-          
-          // Safely get all values with defaults
           const currentStock = inventoryItem?.quantity ?? product?.quantityInStock ?? 0;
           const reorderLevel = product?.lowStockThreshold || 0;
           const unitCost = product?.costPrice || 0;
           const totalValue = unitCost * currentStock;
           const stockStatus = getStockStatus(currentStock, reorderLevel);
-          
-          // Find category name
           const productCategory = categoriesData.find(cat => cat?.id === product?.categoryId);
           const categoryName = productCategory?.name || product?.category?.name || 'Uncategorized';
           
@@ -170,15 +190,21 @@ const InventoryValuationReport = () => {
           console.error('Error processing product:', product?.id, error);
           return null;
         }
-      }).filter(item => item !== null); // Remove any null items from processing errors
+      }).filter(item => item !== null);
 
       setData(processedData);
       calculateSummary(processedData);
       updateCategoryFilters(processedData);
-      
     } catch (error) {
       console.error('Error fetching inventory report:', error);
       message.error(`Failed to load inventory report: ${error.message}`);
+      setData([]);
+      setSummaryData({
+        totalValue: 0,
+        totalItems: 0,
+        lowStockItems: 0,
+        outOfStockItems: 0
+      });
     } finally {
       setLoading(false);
     }
@@ -186,7 +212,13 @@ const InventoryValuationReport = () => {
 
   const calculateSummary = (inventoryData) => {
     if (!Array.isArray(inventoryData)) {
-      console.error('Invalid inventory data for summary calculation');
+      console.error('Invalid inventory data for summary calculation:', inventoryData);
+      setSummaryData({
+        totalValue: 0,
+        totalItems: 0,
+        lowStockItems: 0,
+        outOfStockItems: 0
+      });
       return;
     }
 
@@ -207,7 +239,10 @@ const InventoryValuationReport = () => {
   };
 
   const updateCategoryFilters = (inventoryData) => {
-    if (!Array.isArray(inventoryData)) return;
+    if (!Array.isArray(inventoryData)) {
+      console.error('Invalid inventory data for category filters:', inventoryData);
+      return;
+    }
     
     const uniqueCategories = [...new Set(inventoryData.map(item => item.categoryName))].filter(Boolean);
     const categoryColumnIndex = columns.findIndex(col => col.key === 'category');
@@ -298,7 +333,6 @@ const InventoryValuationReport = () => {
         </Button>
       </div>
       
-      {/* Summary Cards */}
       <Row gutter={[16, 16]} className="mb-4 md:mb-6">
         <Col xs={24} sm={12} md={6}>
           <Card>
@@ -338,7 +372,6 @@ const InventoryValuationReport = () => {
         </Col>
       </Row>
       
-      {/* Inventory Table */}
       <Card>
         <Table 
           columns={columns} 
