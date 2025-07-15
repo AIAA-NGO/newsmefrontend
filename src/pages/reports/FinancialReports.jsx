@@ -69,34 +69,33 @@ const FinancialReports = () => {
     setAnchorEl(null);
   };
 
-  const fetchProfitData = async () => {
-    if (!startDate || !endDate) {
-      setDateError(true);
-      return;
-    }
-    
-    setLoading(true);
-    setError(null);
-    setNoData(false);
-    setDateError(false);
-    
-    try {
-      const data = await getProfitLossReport(startDate, endDate);
-      if (data && data.totalRevenue === 0 && data.totalCosts === 0) {
-        setNoData(true);
-        setReportData(null);
-      } else {
-        setReportData(data);
-      }
-    } catch (err) {
-      console.error('Error fetching profit data:', err);
-      setError(err.message || 'Failed to fetch report data');
+const fetchProfitData = async () => {
+  if (!startDate || !endDate) {
+    setDateError(true);
+    return;
+  }
+  
+  setLoading(true);
+  setError(null);
+  setNoData(false);
+  setDateError(false);
+  
+  try {
+    const data = await getProfitLossReport(startDate, endDate);
+    if (data && data.totalRevenue === 0 && data.totalCosts === 0) {
+      setNoData(true);
       setReportData(null);
-    } finally {
-      setLoading(false);
+    } else {
+      setReportData(data);
     }
-  };
-
+  } catch (err) {
+    console.error('Error fetching profit data:', err);
+    setError(err.response?.data?.message || err.message || 'Failed to fetch report data');
+    setReportData(null);
+  } finally {
+    setLoading(false);
+  }
+};
   useEffect(() => {
     let isMounted = true;
     

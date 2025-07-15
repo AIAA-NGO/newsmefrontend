@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Configure API base URL
-const API_BASE_URL = `${process.env.REACT_APP_API_BASE_URL || 'https://inventorymanagementsystem-we5x.onrender.com'}/api/reports/financial`;
+const API_BASE_URL = `${process.env.REACT_APP_API_BASE_URL || 'https://inventorymanagementsystem-we5x.onrender.com'}/reports/financial`;
 
 // Create axios instance with default configuration
 const api = axios.create({
@@ -63,30 +63,15 @@ const formatDate = (date) => {
  */
 export const getProfitLossReport = async (startDate, endDate) => {
   try {
-    const params = {
-      startDate: formatDate(startDate),
-      endDate: formatDate(endDate)
-    };
-
-    // Remove undefined/null parameters
-    Object.keys(params).forEach(key => params[key] == null && delete params[key]);
-
-    const response = await api.get('/profit-loss', { 
-      params,
-      paramsSerializer: {
-        indexes: null // Properly serialize array-like params if needed
+    const response = await api.get('/profit-loss', {
+      params: {
+        startDate: formatDate(startDate),
+        endDate: formatDate(endDate)
       }
     });
-
-    // Validate response structure
-    if (!response.data || typeof response.data !== 'object') {
-      throw new Error('Invalid response structure from server');
-    }
-
     return response.data;
   } catch (error) {
-    console.error('Error fetching profit/loss report:', error);
-    throw new Error(error.response?.data?.message || 'Failed to fetch profit/loss report');
+    throw error;
   }
 };
 
