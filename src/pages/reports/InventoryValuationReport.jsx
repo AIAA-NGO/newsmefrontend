@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Table, Button, Statistic, Tag, message, Card, Row, Col } from 'antd';
+import { Table, Button, Statistic, Tag, message, Card, Row, Col, Spin } from 'antd';
 import { Download } from 'lucide-react';
 import { InventoryService } from '../../services/InventoryService';
 import { getAllProducts } from '../../services/productServices';
@@ -54,11 +54,11 @@ const InventoryValuationReport = () => {
     },
     { 
       title: 'Stock', 
-      dataIndex: 'currentStock', 
+      dataIndex: 'quantityInStock', 
       key: 'quantity',
       width: 100,
       render: (val) => <span className="font-medium">{val || 0}</span>,
-      sorter: (a, b) => (a.currentStock || 0) - (b.currentStock || 0)
+      sorter: (a, b) => (a.quantityInStock || 0) - (b.quantityInStock || 0)
     },
     { 
       title: 'Unit Cost', 
@@ -90,12 +90,16 @@ const InventoryValuationReport = () => {
       dataIndex: 'stockStatus', 
       key: 'status',
       width: 120,
-      render: status => {
+      render: (status, record) => {
+        const currentStatus = getStockStatus(
+          record.quantityInStock,
+          record.lowStockThreshold
+        );
         let color = 'green';
-        if (status === 'OUT OF STOCK') color = 'red';
-        else if (status === 'LOW') color = 'orange';
-        else if (status === 'MEDIUM') color = 'blue';
-        return <Tag color={color} className="font-medium">{status || 'N/A'}</Tag>;
+        if (currentStatus === 'OUT OF STOCK') color = 'red';
+        else if (currentStatus === 'LOW') color = 'orange';
+        else if (currentStatus === 'MEDIUM') color = 'blue';
+        return <Tag color={color} className="font-medium">{currentStatus || 'N/A'}</Tag>;
       },
       filters: [
         { text: 'HIGH', value: 'HIGH' },
@@ -103,15 +107,19 @@ const InventoryValuationReport = () => {
         { text: 'LOW', value: 'LOW' },
         { text: 'OUT OF STOCK', value: 'OUT OF STOCK' },
       ],
-      onFilter: (value, record) => record.stockStatus === value,
+      onFilter: (value, record) => 
+        getStockStatus(record.quantityInStock, record.lowStockThreshold) === value,
     },
   ], []);
 
   const fetchCategories = async () => {
     try {
       const categoriesData = await getAllCategories();
-      console.log('Categories response:', categoriesData); // Debug log
-      return Array.isArray(categoriesData) ? categoriesData : [];
+      return Array.isArray(categoriesData?.content) 
+        ? categoriesData.content 
+        : Array.isArray(categoriesData)
+          ? categoriesData
+          : [];
     } catch (error) {
       console.error('Error fetching categories:', error);
       message.error('Failed to load categories');
@@ -129,68 +137,42 @@ const InventoryValuationReport = () => {
   const fetchInventoryReport = async () => {
     setLoading(true);
     try {
-      const [categoriesData, products, inventoryStatus] = await Promise.all([
+      const [categoriesData, productsResponse] = await Promise.all([
         fetchCategories(),
-        getAllProducts(),
-        InventoryService.getInventoryStatus()
+        getAllProducts()
       ]);
 
-      // Ensure products and inventoryStatus are arrays
-      if (!Array.isArray(products)) {
-        console.error('Products data is not an array:', products);
-        setData([]);
-        setSummaryData({
-          totalValue: 0,
-          totalItems: 0,
-          lowStockItems: 0,
-          outOfStockItems: 0
-        });
-        message.error('Failed to load products data');
-        return;
-      }
+      // Extract products array from response
+      const products = Array.isArray(productsResponse?.content) 
+        ? productsResponse.content 
+        : Array.isArray(productsResponse)
+          ? productsResponse
+          : [];
 
-      if (!Array.isArray(inventoryStatus)) {
-        console.error('Inventory status data is not an array:', inventoryStatus);
-        setData([]);
-        setSummaryData({
-          totalValue: 0,
-          totalItems: 0,
-          lowStockItems: 0,
-          outOfStockItems: 0
-        });
-        message.error('Failed to load inventory status');
-        return;
-      }
+      console.log('Products data:', products); // Debug log
 
       const processedData = products.map(product => {
-        try {
-          const inventoryItem = inventoryStatus.find(item => item?.productId === product?.id) || {};
-          const currentStock = inventoryItem?.quantity ?? product?.quantityInStock ?? 0;
-          const reorderLevel = product?.lowStockThreshold || 0;
-          const unitCost = product?.costPrice || 0;
-          const totalValue = unitCost * currentStock;
-          const stockStatus = getStockStatus(currentStock, reorderLevel);
-          const productCategory = categoriesData.find(cat => cat?.id === product?.categoryId);
-          const categoryName = productCategory?.name || product?.category?.name || 'Uncategorized';
-          
-          return {
-            ...product,
-            ...inventoryItem,
-            id: product?.id,
-            sku: product?.sku || '',
-            name: product?.name || 'Unknown Product',
-            currentStock,
-            totalValue,
-            stockStatus,
-            categoryName,
-            costPrice: unitCost,
-            lowStockThreshold: reorderLevel
-          };
-        } catch (error) {
-          console.error('Error processing product:', product?.id, error);
-          return null;
-        }
-      }).filter(item => item !== null);
+        const totalValue = (product.costPrice || 0) * (product.quantityInStock || 0);
+        const stockStatus = getStockStatus(
+          product.quantityInStock,
+          product.lowStockThreshold
+        );
+        
+        return {
+          ...product,
+          id: product.id,
+          sku: product.sku || '',
+          name: product.name || 'Unknown Product',
+          quantityInStock: product.quantityInStock || 0,
+          totalValue,
+          stockStatus,
+          categoryName: product.categoryName || 'Uncategorized',
+          costPrice: product.costPrice || 0,
+          lowStockThreshold: product.lowStockThreshold || 0
+        };
+      });
+
+      console.log('Processed data:', processedData); // Debug log
 
       setData(processedData);
       calculateSummary(processedData);
@@ -211,24 +193,14 @@ const InventoryValuationReport = () => {
   };
 
   const calculateSummary = (inventoryData) => {
-    if (!Array.isArray(inventoryData)) {
-      console.error('Invalid inventory data for summary calculation:', inventoryData);
-      setSummaryData({
-        totalValue: 0,
-        totalItems: 0,
-        lowStockItems: 0,
-        outOfStockItems: 0
-      });
-      return;
-    }
-
     const totalValue = inventoryData.reduce((sum, item) => sum + (item.totalValue || 0), 0);
-    const lowStockItems = inventoryData.filter(item => 
-      item.stockStatus === 'LOW' || item.stockStatus === 'MEDIUM'
-    ).length;
-    const outOfStockItems = inventoryData.filter(item => 
-      item.stockStatus === 'OUT OF STOCK'
-    ).length;
+    const lowStockItems = inventoryData.filter(item => {
+      const status = getStockStatus(item.quantityInStock, item.lowStockThreshold);
+      return status === 'LOW' || status === 'MEDIUM';
+    }).length;
+    const outOfStockItems = inventoryData.filter(item => {
+      return getStockStatus(item.quantityInStock, item.lowStockThreshold) === 'OUT OF STOCK';
+    }).length;
 
     setSummaryData({
       totalValue,
@@ -239,11 +211,6 @@ const InventoryValuationReport = () => {
   };
 
   const updateCategoryFilters = (inventoryData) => {
-    if (!Array.isArray(inventoryData)) {
-      console.error('Invalid inventory data for category filters:', inventoryData);
-      return;
-    }
-    
     const uniqueCategories = [...new Set(inventoryData.map(item => item.categoryName))].filter(Boolean);
     const categoryColumnIndex = columns.findIndex(col => col.key === 'category');
     if (categoryColumnIndex >= 0) {
@@ -259,51 +226,42 @@ const InventoryValuationReport = () => {
   };
 
   const handleExport = async () => {
-    if (!Array.isArray(data) || data.length === 0) {
+    if (data.length === 0) {
       message.warning('No data available to export');
       return;
     }
 
     setExportLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/reports/export`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          reportType: 'INVENTORY',
-          format: 'CSV',
-          data: data.map(item => ({
-            sku: item.sku || '',
-            name: item.name || '',
-            category: item.categoryName || '',
-            currentStock: item.currentStock || 0,
-            unitCost: item.costPrice || 0,
-            totalValue: item.totalValue || 0,
-            reorderLevel: item.lowStockThreshold || 0,
-            status: item.stockStatus || ''
-          }))
-        })
-      });
+      const headers = columns.map(col => col.title);
+      const rows = data.map(item => ({
+        SKU: item.sku || '',
+        'Product Name': item.name || '',
+        Category: item.categoryName || '',
+        Stock: item.quantityInStock || 0,
+        'Unit Cost': item.costPrice || 0,
+        'Total Value': item.totalValue || 0,
+        'Reorder Level': item.lowStockThreshold || 0,
+        Status: getStockStatus(item.quantityInStock, item.lowStockThreshold) || ''
+      }));
 
-      if (!response.ok) throw new Error('Export failed');
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => Object.values(row).map(val => 
+          `"${String(val).replace(/"/g, '""')}"`
+        ).join(','))
+      ].join('\n');
 
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute(
-        'download',
-        `inventory-valuation-${new Date().toISOString().split('T')[0]}.csv`
-      );
+      link.setAttribute('download', `inventory-valuation-${new Date().toISOString().split('T')[0]}.csv`);
       document.body.appendChild(link);
       link.click();
-      link.parentNode.removeChild(link);
+      document.body.removeChild(link);
       
-      message.success('Export started successfully');
+      message.success('Export completed successfully');
     } catch (error) {
       console.error('Export error:', error);
       message.error(`Failed to export report: ${error.message}`);
@@ -328,8 +286,7 @@ const InventoryValuationReport = () => {
           disabled={data.length === 0}
           className="bg-blue-600 hover:bg-blue-700 border-blue-600 text-white w-full md:w-auto"
         >
-          <span className="hidden md:inline">Export Report</span>
-          <span className="md:hidden">Export</span>
+          Export Report
         </Button>
       </div>
       
@@ -383,24 +340,11 @@ const InventoryValuationReport = () => {
             pageSize: 10,
             showSizeChanger: true,
             pageSizeOptions: ['10', '20', '50', '100'],
-            showTotal: (total) => `Total ${total} items`,
-            responsive: true
+            showTotal: (total) => `Total ${total} items`
           }}
           size="small"
-          className="responsive-table"
           locale={{
-            emptyText: (
-              <div className="py-8 text-center">
-                <p className="text-gray-500">No inventory data available</p>
-                <Button 
-                  type="link" 
-                  onClick={fetchInventoryReport}
-                  loading={loading}
-                >
-                  Refresh Data
-                </Button>
-              </div>
-            )
+            emptyText: loading ? <Spin size="large" /> : 'No inventory data available'
           }}
         />
       </Card>

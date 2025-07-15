@@ -142,8 +142,12 @@ export const getSalesByStatus = async (status) => {
  */
 export const getSalesByDateRange = async (startDate, endDate) => {
   try {
+    // Ensure dates are in proper format (accepts both Date objects and formatted strings)
+    const start = typeof startDate === 'string' ? startDate : startDate.toISOString().split('T')[0];
+    const end = typeof endDate === 'string' ? endDate : endDate.toISOString().split('T')[0];
+    
     const response = await fetch(
-      `${API_BASE_URL}/date-range?startDate=${startDate.toISOString().split('T')[0]}&endDate=${endDate.toISOString().split('T')[0]}`,
+      `${API_BASE_URL}/date-range?startDate=${start}&endDate=${end}`,
       {
         headers: getAuthHeader()
       }

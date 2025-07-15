@@ -272,6 +272,7 @@ export default function Sidebar({ isMobileOpen, isMinimized, onLinkClick, onTogg
 
 
          {/* Finance Module - Only for users with reports_view permission */}
+{/* Finance Module - Only for users with reports_view permission */}
 {hasPermission('finance_view') && (
   <div className="relative">
     <button
@@ -296,19 +297,12 @@ export default function Sidebar({ isMobileOpen, isMinimized, onLinkClick, onTogg
       <div className="ml-10 mt-2 flex flex-col gap-1 pl-2 border-l border-gray-700">
         {[
           { path: '/reports/income-statement', label: 'Income Statement' },
-          { path: '/reports/cash-flow', label: 'Cash Flow Statement' },
-          { 
-            path: '/finance/payments', 
-            label: 'Worker Payments', 
-            requiredPermission: 'finance_view',
-            icon: <FileText size={14} />,
-            onClick: () => setFinanceOpen(false)
-          }
+          { path: '/reports/cash-flow', label: 'Cash Flow Statement' }
         ].map(item => ({
           ...item,
-          icon: item.icon || <FileText size={14} />,
-          requiredPermission: item.requiredPermission || 'finance_view',
-          onClick: item.onClick || (() => setFinanceOpen(false))
+          icon: <FileText size={14} />,
+          requiredPermission: 'finance_view',
+          onClick: () => setFinanceOpen(false)
         })).map(renderMenuItem)}
       </div>
     )}

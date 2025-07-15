@@ -133,35 +133,70 @@ const ProductPerformanceReport = () => {
 
     setLoading(true);
     try {
-      const [categoriesData, productsData, salesData] = await Promise.all([
+      const [categoriesResponse, productsResponse, salesResponse] = await Promise.all([
         getCategories(),
         getAllProducts(),
-        getSalesByDateRange(startDate.format('YYYY-MM-DD'), endDate.format('YYYY-MM-DD'))
+        getSalesByDateRange(
+          startDate.format('YYYY-MM-DD'),
+          endDate.format('YYYY-MM-DD')
+        )
       ]);
 
-      setCategories(categoriesData || []);
+      // Extract data from paginated responses if needed
+      const categoriesData = Array.isArray(categoriesResponse?.content) 
+        ? categoriesResponse.content 
+        : Array.isArray(categoriesResponse)
+          ? categoriesResponse
+          : [];
+      
+      const productsData = Array.isArray(productsResponse?.content) 
+        ? productsResponse.content 
+        : Array.isArray(productsResponse)
+          ? productsResponse
+          : [];
+      
+      const salesData = Array.isArray(salesResponse?.content) 
+        ? salesResponse.content 
+        : Array.isArray(salesResponse)
+          ? salesResponse
+          : [];
 
+      console.log('Categories:', categoriesData);
+      console.log('Products:', productsData);
+      console.log('Sales:', salesData);
+
+      setCategories(categoriesData);
+
+      // Process sales data to get product quantities sold
       const productSalesMap = {};
-      (salesData || []).forEach(sale => {
+      const productRevenueMap = {};
+      const productCostMap = {};
+
+      salesData.forEach(sale => {
         (sale.items || []).forEach(item => {
-          const productId = String(item.productId || item.product_id);
+          const productId = String(item.productId);
           if (!productId) return;
-          productSalesMap[productId] = (productSalesMap[productId] || 0) + item.quantity;
+          
+          // Sum quantities
+          productSalesMap[productId] = (productSalesMap[productId] || 0) + (item.quantity || 0);
+          
+          // Sum revenue
+          productRevenueMap[productId] = (productRevenueMap[productId] || 0) + (item.totalPrice || 0);
+          
+          // Sum costs
+          productCostMap[productId] = (productCostMap[productId] || 0) + (item.costAmount || 0);
         });
       });
 
-      const processedData = (productsData?.data || []).map(product => {
+      const processedData = productsData.map(product => {
         const productId = String(product.id);
         const unitsSold = productSalesMap[productId] || 0;
-        const sellingPrice = Number(product.price) || 0;
-        const costPrice = Number(product.costPrice || product.cost_price) || 0;
-
-        const revenue = unitsSold * sellingPrice;
-        const cost = unitsSold * costPrice;
+        const revenue = productRevenueMap[productId] || 0;
+        const cost = productCostMap[productId] || 0;
         const profit = revenue - cost;
         const profitMargin = revenue > 0 ? profit / revenue : 0;
 
-        const productCategory = (categoriesData || []).find(
+        const productCategory = categoriesData.find(
           cat => cat.id === (product.categoryId || product.category_id)
         );
         const categoryName = productCategory?.name || product.category?.name || null;
@@ -170,8 +205,8 @@ const ProductPerformanceReport = () => {
           productId: product.id,
           productName: product.name || `Product ${product.id}`,
           categoryName,
-          costPrice,
-          sellingPrice,
+          costPrice: cost / (unitsSold || 1), // Average cost price per unit
+          sellingPrice: revenue / (unitsSold || 1), // Average selling price per unit
           unitsSold,
           revenue,
           cost,
@@ -179,6 +214,8 @@ const ProductPerformanceReport = () => {
           profitMargin
         };
       });
+
+      console.log('Processed data:', processedData);
 
       setData(processedData);
 
@@ -199,6 +236,13 @@ const ProductPerformanceReport = () => {
       console.error('Error fetching product report:', error);
       message.error(error.message || 'Failed to fetch product performance data');
       setData([]);
+      setSummaryData({
+        totalProducts: 0,
+        totalRevenue: 0,
+        totalCosts: 0,
+        totalProfit: 0,
+        avgProfitMargin: 0
+      });
     } finally {
       setLoading(false);
     }
@@ -207,9 +251,33 @@ const ProductPerformanceReport = () => {
   const handleExport = () => {
     setExportLoading(true);
     try {
-      // Implement your export logic here
-      message.success('Export functionality not implemented yet');
+      // Create CSV content
+      const headers = columns.map(col => col.title).join(',');
+      const rows = data.map(item => 
+        columns.map(col => {
+          const value = item[col.dataIndex];
+          if (col.render) {
+            // For rendered values, we'll use the raw data instead
+            return `"${value !== undefined ? String(value).replace(/"/g, '""') : ''}"`;
+          }
+          return `"${value !== undefined ? String(value).replace(/"/g, '""') : ''}"`;
+        }).join(',')
+      );
+      
+      const csvContent = [headers, ...rows].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `product_performance_${startDate.format('YYYY-MM-DD')}_to_${endDate.format('YYYY-MM-DD')}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      message.success('Report exported successfully');
     } catch (error) {
+      console.error('Export error:', error);
       message.error('Failed to export report');
     } finally {
       setExportLoading(false);
