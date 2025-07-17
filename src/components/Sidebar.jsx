@@ -6,7 +6,7 @@ import {
   Home, Boxes, Users, ShoppingCart, FileBarChart2, 
   ChevronDown, ClipboardList, DollarSign, FileText,
   Settings, CreditCard, ChevronLeft, ChevronRight,
-   Landmark
+  Landmark
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -105,19 +105,19 @@ export default function Sidebar({ isMobileOpen, isMinimized, onLinkClick, onTogg
         {/* Nav Links */}
         <nav className="flex flex-col gap-1 p-2 mt-2 select-none">
           {/* Home - Only for users with dashboard_access permission */}
-{hasPermission('dashboard_access') && (
-  <Link
-    to="/"
-    onClick={onLinkClick}
-    className={`flex items-center gap-3 px-4 py-4 rounded-lg transition-all
-      ${isActive('/') ? 'bg-blue-900/30 text-white border-l-4 border-blue-500' : 'hover:bg-gray-700/50'}
-      ${isMinimized && !isMobile ? 'justify-center px-2' : ''}`}
-    title={isMinimized && !isMobile ? 'Home' : undefined}
-  >
-    <Home size={20} className={`${isActive('/') ? 'text-blue-400' : 'text-gray-300'}`} />
-    {(!isMinimized || isMobile) && <span className="font-medium">Home</span>}
-  </Link>
-)}
+          {hasPermission('dashboard_access') && (
+            <Link
+              to="/"
+              onClick={onLinkClick}
+              className={`flex items-center gap-3 px-4 py-4 rounded-lg transition-all
+                ${isActive('/') ? 'bg-blue-900/30 text-white border-l-4 border-blue-500' : 'hover:bg-gray-700/50'}
+                ${isMinimized && !isMobile ? 'justify-center px-2' : ''}`}
+              title={isMinimized && !isMobile ? 'Home' : undefined}
+            >
+              <Home size={20} className={`${isActive('/') ? 'text-blue-400' : 'text-gray-300'}`} />
+              {(!isMinimized || isMobile) && <span className="font-medium">Home</span>}
+            </Link>
+          )}
 
           {/* Manage Product - Only for users with product_view permission */}
           {hasPermission('product_view') && (
@@ -270,44 +270,41 @@ export default function Sidebar({ isMobileOpen, isMinimized, onLinkClick, onTogg
             </Link>
           )}
 
-
-         {/* Finance Module - Only for users with reports_view permission */}
-{/* Finance Module - Only for users with reports_view permission */}
-{hasPermission('finance_view') && (
-  <div className="relative">
-    <button
-      onClick={() => setFinanceOpen(!financeOpen)}
-      className={`flex items-center justify-between w-full px-4 py-4 rounded-lg transition-all
-        ${isActive('/reports/income-statement') ? 'bg-blue-900/30 text-white border-l-4 border-blue-500' : 'hover:bg-gray-700/50'}
-        ${isMinimized && !isMobile ? 'justify-center px-2' : ''}`}
-      title={isMinimized && !isMobile ? 'Finance' : undefined}
-    >
-      <div className="flex items-center gap-3">
-        <Landmark size={20} className={`${isActive('/reports/income-statement') ? 'text-blue-400' : 'text-gray-300'}`} />
-        {(!isMinimized || isMobile) && <span className="font-medium">Finance</span>}
-      </div>
-      {(!isMinimized || isMobile) && (
-        <ChevronDown 
-          size={16} 
-          className={`transition-transform ${financeOpen ? 'rotate-180' : ''} text-gray-400`}
-        />
-      )}
-    </button>
-    {(financeOpen && (!isMinimized || isMobile)) && (
-      <div className="ml-10 mt-2 flex flex-col gap-1 pl-2 border-l border-gray-700">
-        {[
-          { path: '/reports/income-statement', label: 'Income Statement' },
-          { path: '/reports/cash-flow', label: 'Cash Flow Statement' }
-        ].map(item => ({
-          ...item,
-          icon: <FileText size={14} />,
-          requiredPermission: 'finance_view',
-          onClick: () => setFinanceOpen(false)
-        })).map(renderMenuItem)}
-      </div>
-    )}
-  </div>
-)}
+          {/* Finance Module - Only for users with finance_view permission */}
+          {hasPermission('finance_view') && (
+            <div className="relative">
+              <button
+                onClick={() => setFinanceOpen(!financeOpen)}
+                className={`flex items-center justify-between w-full px-4 py-4 rounded-lg transition-all
+                  ${isActive('/reports/income-statement') ? 'bg-blue-900/30 text-white border-l-4 border-blue-500' : 'hover:bg-gray-700/50'}
+                  ${isMinimized && !isMobile ? 'justify-center px-2' : ''}`}
+                title={isMinimized && !isMobile ? 'Finance' : undefined}
+              >
+                <div className="flex items-center gap-3">
+                  <Landmark size={20} className={`${isActive('/reports/income-statement') ? 'text-blue-400' : 'text-gray-300'}`} />
+                  {(!isMinimized || isMobile) && <span className="font-medium">Finance</span>}
+                </div>
+                {(!isMinimized || isMobile) && (
+                  <ChevronDown 
+                    size={16} 
+                    className={`transition-transform ${financeOpen ? 'rotate-180' : ''} text-gray-400`}
+                  />
+                )}
+              </button>
+              {(financeOpen && (!isMinimized || isMobile)) && (
+                <div className="ml-10 mt-2 flex flex-col gap-1 pl-2 border-l border-gray-700">
+                  {[
+                    { path: '/reports/income-statement', label: 'Income Statement' }
+                  ].map(item => ({
+                    ...item,
+                    icon: <FileText size={14} />,
+                    requiredPermission: 'finance_view',
+                    onClick: () => setFinanceOpen(false)
+                  })).map(renderMenuItem)}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Users - Only for users with user_view permission */}
           {hasPermission('user_view') && (
@@ -361,47 +358,46 @@ export default function Sidebar({ isMobileOpen, isMinimized, onLinkClick, onTogg
           )}
 
           {/* Reports - Only for users with specific report permissions */}
-{(hasPermission('salesreports_view') || 
-  hasPermission('productsreports_view') || 
-  hasPermission('inventoryreports_view') || 
-  hasPermission('financialreports_view') || 
-  hasPermission('suppliersreports_view')) && (
-  <div className="relative">
-    <button
-      onClick={() => setReportsOpen(!reportsOpen)}
-      className={`flex items-center justify-between w-full px-4 py-4 rounded-lg transition-all
-        ${isActive('/reports') ? 'bg-blue-900/30 text-white border-l-4 border-blue-500' : 'hover:bg-gray-700/50'}
-        ${isMinimized && !isMobile ? 'justify-center px-2' : ''}`}
-      title={isMinimized && !isMobile ? 'Reports' : undefined}
-    >
-      <div className="flex items-center gap-3">
-        <FileBarChart2 size={20} className={`${isActive('/reports') ? 'text-blue-400' : 'text-gray-300'}`} />
-        {(!isMinimized || isMobile) && <span className="font-medium">Reports</span>}
-      </div>
-      {(!isMinimized || isMobile) && (
-        <ChevronDown 
-          size={16} 
-          className={`transition-transform ${reportsOpen ? 'rotate-180' : ''} text-gray-400`}
-        />
-      )}
-    </button>
-    {(reportsOpen && (!isMinimized || isMobile)) && (
-      <div className="ml-10 mt-2 flex flex-col gap-1 pl-2 border-l border-gray-700">
-        {[
-          { path: '/reports/sales', label: 'Sales Report', requiredPermission: 'salesreports_view' },
-          { path: '/reports/products', label: 'Product Performance', requiredPermission: 'productsreports_view' },
-          { path: '/reports/inventory', label: 'Inventory Valuation', requiredPermission: 'inventoryreports_view' },
-          { path: '/reports/financial', label: 'Financial Reports', requiredPermission: 'financialreports_view' },
-          { path: '/reports/suppliers', label: 'Supplier Purchases', requiredPermission: 'suppliersreports_view' }
-        ].map(item => ({
-          ...item,
-          icon: <FileBarChart2 size={14} />,
-          onClick: () => setReportsOpen(false)
-        })).map(renderMenuItem)}
-      </div>
-    )}
-  </div>
-)}
+          {(hasPermission('salesreports_view') || 
+            hasPermission('productsreports_view') || 
+            hasPermission('inventoryreports_view') || 
+            hasPermission('suppliersreports_view')) && (
+            <div className="relative">
+              <button
+                onClick={() => setReportsOpen(!reportsOpen)}
+                className={`flex items-center justify-between w-full px-4 py-4 rounded-lg transition-all
+                  ${isActive('/reports') ? 'bg-blue-900/30 text-white border-l-4 border-blue-500' : 'hover:bg-gray-700/50'}
+                  ${isMinimized && !isMobile ? 'justify-center px-2' : ''}`}
+                title={isMinimized && !isMobile ? 'Reports' : undefined}
+              >
+                <div className="flex items-center gap-3">
+                  <FileBarChart2 size={20} className={`${isActive('/reports') ? 'text-blue-400' : 'text-gray-300'}`} />
+                  {(!isMinimized || isMobile) && <span className="font-medium">Reports</span>}
+                </div>
+                {(!isMinimized || isMobile) && (
+                  <ChevronDown 
+                    size={16} 
+                    className={`transition-transform ${reportsOpen ? 'rotate-180' : ''} text-gray-400`}
+                  />
+                )}
+              </button>
+              {(reportsOpen && (!isMinimized || isMobile)) && (
+                <div className="ml-10 mt-2 flex flex-col gap-1 pl-2 border-l border-gray-700">
+                  {[
+                    { path: '/reports/sales', label: 'Sales Report', requiredPermission: 'salesreports_view' },
+                    { path: '/reports/products', label: 'Product Performance', requiredPermission: 'productsreports_view' },
+                    { path: '/reports/inventory', label: 'Inventory Valuation', requiredPermission: 'inventoryreports_view' },
+                    { path: '/reports/suppliers', label: 'Supplier Purchases', requiredPermission: 'suppliersreports_view' }
+                  ].map(item => ({
+                    ...item,
+                    icon: <FileBarChart2 size={14} />,
+                    onClick: () => setReportsOpen(false)
+                  })).map(renderMenuItem)}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Settings - Only for users with settings_manage permission */}
           {hasPermission('settings_manage') && (
             <div className="relative">
@@ -427,7 +423,6 @@ export default function Sidebar({ isMobileOpen, isMinimized, onLinkClick, onTogg
                 <div className="ml-10 mt-2 flex flex-col gap-1 pl-2 border-l border-gray-700">
                   {[
                     { path: '/settings/business/profile', label: 'Business Profile' },
-   
                     { path: '/settings/business/roles', label: 'Roles', requiredPermission: 'role_manage' },
                     { path: '/settings/business/roles-permissions', label: 'Roles & Permissions', requiredPermission: 'role_manage' }
                   ].map(item => ({
